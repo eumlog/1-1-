@@ -498,6 +498,17 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     await appendMessages(introParts);
   };
 
+  const handleReset = () => {
+    if (window.confirm("현재 대화 내용을 모두 삭제하고 처음부터 다시 상담을 시작하시겠습니까?")) {
+      localStorage.removeItem(STORAGE_KEY);
+      setMessages([]);
+      setIsTyping(false);
+      setTimeout(() => {
+          startIntro();
+      }, 100);
+    }
+  };
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -553,27 +564,35 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
       <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
           <div className="text-center mb-6">
-             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔑</div>
-             <h2 className="text-xl font-bold text-slate-800 mb-2">API 키 입력 필요</h2>
-             <p className="text-sm text-slate-500 leading-relaxed">
-               서비스 이용을 위해<br/>
-               Google Gemini API 키를 입력해주세요.<br/>
-               <span className="text-xs text-slate-400 mt-1 block">(입력된 키는 브라우저에만 저장됩니다)</span>
+             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🤖</div>
+             <h2 className="text-xl font-bold text-slate-800 mb-2">Gemini 시작하기</h2>
+             <p className="text-sm text-slate-500 leading-relaxed mb-4">
+               이 프로그램은 <b>Google Gemini</b>를 사용합니다.<br/>
+               키 발급 사이트 이름이 <b>'AI Studio'</b>일 뿐,<br/>
+               동일한 구글 서비스이니 안심하세요!<br/>
              </p>
+             <a 
+               href="https://aistudio.google.com/app/apikey" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="inline-block bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-colors mb-2 shadow-lg shadow-slate-200"
+             >
+               🚀 내 구글 계정으로 키 발급받기
+             </a>
           </div>
           <input 
             type="password"
             value={manualKey}
             onChange={(e) => setManualKey(e.target.value)}
-            placeholder="AI Studio에서 발급받은 키 붙여넣기"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all mb-4"
+            placeholder="발급받은 Gemini 키 붙여넣기 (AIza...)"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all mb-4 placeholder:text-slate-400"
           />
           <button 
             onClick={handleKeySubmit}
             disabled={!manualKey.trim()}
-            className="w-full bg-slate-900 text-white rounded-xl py-3 font-bold text-sm hover:bg-emerald-600 transition-all disabled:opacity-50"
+            className="w-full bg-emerald-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-md shadow-emerald-200"
           >
-            저장하고 시작하기
+            입력 완료 및 시작
           </button>
         </div>
       </div>
@@ -594,7 +613,16 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full text-2xl transition-all">&times;</button>
+          <div className="flex items-center gap-2">
+            <button 
+                onClick={handleReset} 
+                className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
+                title="처음부터 다시 시작"
+            >
+                🔄
+            </button>
+            <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full text-2xl transition-all">&times;</button>
+          </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f0f2f5] custom-scrollbar">
