@@ -15,19 +15,32 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. 데이터 매핑
-  const name = userData?.['이름(*)'] || userData?.name || '회원';
-  const birthYear = userData?.['생년월일(*)'] || '';
+  // 1. 데이터 매핑 (시트의 정확한 헤더명과 데이터를 매칭)
+  // 이 변수명들이 나중에 AI가 JSON 키로 사용할 헤더명입니다.
+  const HEADERS = {
+    NAME: '이름(*)',
+    BIRTH: '생년월일(*)',
+    AGE: '선호 나이 범위(*)',
+    HEIGHT: '최소한의 허용 가능한 키(*)',
+    SMOKING: '흡연 기준(*)',
+    INCOME: '상대방의 연봉(소득) 기준이 있다면(*)',
+    EDU: '선호 학력(*)',
+    RELIGION: '종교(*)', // 본인 종교지만, 상대 종교 조건으로도 매핑 가능 (보통 조건 컬럼이 따로 없으면 메모에 기록)
+    PRIORITY: '이상형 조건 순위(*)'
+  };
+
+  const name = userData?.[HEADERS.NAME] || userData?.name || '회원';
+  const birthYear = userData?.[HEADERS.BIRTH] || '';
   const gender = userData?.['성별(*)'] || '';
   const location = userData?.['거주지역(*)'] || '';
-  const religion = userData?.['종교(*)'] || '무교';
+  const religion = userData?.[HEADERS.RELIGION] || '무교';
   
-  const prefAge = userData?.['선호 나이 범위(*)'] || '';
-  const prefHeight = userData?.['최소한의 허용 가능한 키(*)'] || '';
-  const prefSmoking = userData?.['흡연 기준(*)'] || '';
-  const prefIncome = userData?.['상대방의 연봉(소득) 기준이 있다면(*)'] || '';
-  const prefEdu = userData?.['선호 학력(*)'] || '';
-  const priorityWeights = userData?.['이상형 조건 순위(*)'] || '';
+  const prefAge = userData?.[HEADERS.AGE] || '';
+  const prefHeight = userData?.[HEADERS.HEIGHT] || '';
+  const prefSmoking = userData?.[HEADERS.SMOKING] || '';
+  const prefIncome = userData?.[HEADERS.INCOME] || '';
+  const prefEdu = userData?.[HEADERS.EDU] || '';
+  const priorityWeights = userData?.[HEADERS.PRIORITY] || '';
 
   const rawConditions = userData?.['보장 조건 선택 (중요)(*)'] || '';
   const selectedConditions = typeof rawConditions === 'string' 
@@ -339,7 +352,20 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   steps.push({
     title: '마무리',
-    guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [${conditionStr}] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n- **중요**: 상담 과정에서 사용자가 조건을 변경하거나 완화(예: 연봉 3천 가능, 나이 범위 확대 등)한 내용이 있다면, 마지막 메시지 끝에 [변경 사항 요약]이라는 헤더와 함께 내용을 정리해서 출력하세요.\n- **매우 중요**: 상담 종료 시, 지금까지 조율된 최종 조건을 JSON 형식으로 마지막 줄에 숨겨서 출력하세요. 형식: \`\`\`json{"final_conditions": "...", "memo": "..."}\`\`\`\n- 이 JSON 데이터는 사용자에게는 보이지 않고 서버 저장용으로 사용됩니다.`
+    guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [${conditionStr}] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n
+    - **[중요] 데이터 저장**: 상담 종료 시, 변경되거나 확정된 조건들을 **아래 지정된 '시트 헤더명'을 Key로 사용하여** JSON 형식으로 출력하세요.\n
+    - JSON 예시:\n
+    \`\`\`json
+    {
+      "updates": {
+        "${HEADERS.AGE}": "1990년생 이상 ~ 1995년생 이하",
+        "${HEADERS.HEIGHT}": "165cm 이상",
+        "${HEADERS.SMOKING}": "무관"
+      },
+      "memo": "연봉은 3천 초반도 괜찮다고 하심."
+    }
+    \`\`\`
+    - 변경되지 않은 조건은 updates에 포함하지 마세요.`
   });
 
   const stepsText = steps.map((step, idx) => `${idx + 1}. ${step.title}:\n       ${step.guide}`).join('\n\n    ');
@@ -370,15 +396,17 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     [핵심 규칙 2: 말풍선 분리]
     - **키 조율**과 **지역 확인** 단계에서는 반드시 줄바꿈 두 번(\\n\\n)을 사용하여 말풍선을 나누세요.
 
-    [핵심 규칙 3: 데이터 전송용 출력]
-    - 모든 상담이 종료되면 마지막 문구("고생하셨습니다. 감사합니다!") 뒤에 반드시 아래 포맷의 JSON 데이터를 출력해야 합니다.
-    - JSON 포맷:
-    \`\`\`json
-    {
-      "final_conditions": "상담을 통해 확정된 최종 조건 요약 (예: 나이 90년생 이상, 키 160 이상, 연봉 3천 가능 등)",
-      "memo": "관리자가 참고해야 할 특이사항"
-    }
-    \`\`\`
+    [핵심 규칙 3: 데이터 전송용 출력 (가장 중요)]
+    - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
+    - 사용할 헤더명 목록:
+      - 나이 -> "${HEADERS.AGE}"
+      - 키 -> "${HEADERS.HEIGHT}"
+      - 흡연 -> "${HEADERS.SMOKING}"
+      - 연봉 -> "${HEADERS.INCOME}"
+      - 학력 -> "${HEADERS.EDU}"
+      - 종교 -> "${HEADERS.RELIGION}"
+    
+    - JSON은 사용자에게 보이지 않지만 시스템이 읽어서 **시트의 해당 칸을 자동으로 수정**합니다. 정확한 키를 사용하세요.
 
     [상담 시퀀스 - 순서 엄수]
     각 단계별로 지정된 가이드 문구를 사용하여 질문하되, 문맥에 맞게 자연스럽게 이어가세요.
@@ -388,7 +416,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     [주의 사항]
     - 마크다운(**) 절대 사용 금지.
     - 질문 전에는 절대 '비보장 고지'를 하지 마세요. 반드시 답변 후에 반응하세요.
-    - 사용자가 조건을 완화해주면 "감사합니다" 등의 표현과 함께 긍정적으로 수정 사항을 반영하세요.
   `;
 
   useEffect(() => {
@@ -436,7 +463,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     try {
         const fullChatLog = messages.map(m => `[${m.role}] ${m.text}`).join('\n\n');
         
-        // 요약 데이터가 있으면 함께 전송
+        // 서버로 보낼 페이로드 구성
         const payload: any = {
             action: 'save_consultation',
             name: name,
@@ -445,7 +472,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         };
 
         if (summaryData) {
-            payload.summary = JSON.stringify(summaryData);
+            // updates 객체가 있으면 문자열로 변환하여 전송 (백엔드에서 파싱)
+            if (summaryData.updates) {
+                payload.updates = JSON.stringify(summaryData.updates);
+            }
+            if (summaryData.memo) {
+                payload.memo = summaryData.memo;
+            }
         }
 
         await fetch(scriptUrl, {
