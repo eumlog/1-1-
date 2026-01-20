@@ -9,6 +9,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginInfo, setLoginInfo] = useState({ name: '', pass: '' });
   const [currentUserData, setCurrentUserData] = useState<any>(null);
+  const [serverApiKey, setServerApiKey] = useState<string>(''); // 서버에서 받아온 API 키 저장
   const [showChatbot, setShowChatbot] = useState(false);
 
   const handleSecureLogin = async () => {
@@ -37,6 +38,14 @@ function App() {
         // 결과가 배열이면 첫 번째 데이터 사용
         const userData = Array.isArray(result.data) ? result.data[0] : result.data;
         setCurrentUserData(userData);
+        
+        // 서버에서 전달받은 API 키 저장
+        if (result.apiKey) {
+            setServerApiKey(result.apiKey);
+        } else {
+            console.warn("서버에서 API 키가 전달되지 않았습니다. Apps Script 배포 버전을 확인해주세요.");
+        }
+        
         setShowChatbot(true);
       } else {
         alert(result.error || '성함 또는 비밀번호가 일치하지 않습니다.');
@@ -54,6 +63,7 @@ function App() {
       {showChatbot && currentUserData && (
         <AIChatbot 
           userData={currentUserData} 
+          apiKey={serverApiKey} // 서버에서 받은 키 전달
           onClose={() => setShowChatbot(false)} 
           scriptUrl={APPS_SCRIPT_URL}
         />
