@@ -8,10 +8,36 @@ interface AIChatbotProps {
   scriptUrl: string;
 }
 
+// 환경 변수에서 API 키를 안전하게 가져오는 헬퍼 함수
+const getGenAIKey = (): string => {
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore
+        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
+        // @ts-ignore
+        if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+    }
+    if (typeof process !== 'undefined' && process.env) {
+        if (process.env.API_KEY) return process.env.API_KEY;
+        if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
+    }
+  } catch (e) {
+    console.warn("Environment variable access failed", e);
+  }
+  return '';
+};
+
 export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptUrl }) => {
   const [messages, setMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  
+  // API 키 관리 상태
+  const [apiKey, setApiKey] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [manualKey, setManualKey] = useState('');
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 1. 데이터 매핑
@@ -40,14 +66,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
   // 2. 로직 헬퍼
   const isSelected = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
   const hasOption = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
-  // 유연한 표현 체크 (무관, 상관없음 등)
   const isFlexible = (text: string) => /무관|상관\s*없|모두|다\s*괜찮|다\s*가능|전혀|오픈/.test(text);
-  // 상한선 표현 체크 (이하, 미만, 작은)
   const isMaxLimit = (text: string) => /이하|미만|작은|아담/.test(text);
 
   // 3. 질문 가이드 생성 로직
-
-  // 반응 지침 상수
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
   const REACTION_EASY = "(조건이 까다롭지 않으므로, '비보장 안내' 멘트를 절대 하지 말고 '네 확인했습니다' 정도로 깔끔하게 답변)";
   const REACTION_CONDITIONAL = "(사용자가 제안을 수락하거나 유연한 태도(괜찮다 등)를 보이면 '비보장 안내' 멘트를 절대 하지 말고 '네, 그럼 해당 기준으로 넓혀서 매칭해드리겠습니다'라고 변경 사항을 확정하세요. 반면 까다로운 조건을 고집하면 보장/비보장 여부에 따라 반응하세요.)";
@@ -219,7 +241,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
   // [학력 가이드]
   let eduGuide = '';
   let eduReaction = REACTION_DEFAULT;
-  // '대졸'이라는 글자가 있어도 '전문'이나 '초대졸'이 포함되면 고학력(4년제) 선호 로직 제외
   const isHighEdu = (prefEdu.includes('대졸') || prefEdu.includes('4년제') || prefEdu.includes('대학원')) 
                     && !prefEdu.includes('전문') && !prefEdu.includes('초대졸');
   
@@ -386,29 +407,32 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     - 사용자가 조건을 완화해주면 "감사합니다" 등의 표현과 함께 긍정적으로 수정 사항을 반영하세요.
   `;
 
-  // API 키 초기 진단 로직 추가
+  // API 키 초기화 및 관리 로직
   useEffect(() => {
-    let apiKey = '';
-    try {
-        apiKey = process.env.API_KEY || '';
-    } catch(e) { }
-
-    if (!apiKey) {
-        // 개발자 도구 및 UI에 경고 표시
-        console.error("⛔ [CRITICAL ERROR] Gemini API Key Missing!");
-        console.error("배포 환경(Vercel, GitHub Pages 등)의 Environment Variables에 'API_KEY'를 설정해야 합니다.");
-        
-        // 사용자가 보는 화면에 즉시 안내 메시지 추가
-        const errorMsg = { role: 'model' as const, text: "⚠ 시스템 알림: API 키가 설정되지 않았습니다.\n(관리자에게 'API_KEY' 환경 변수 설정을 요청해주세요.)" };
-        setMessages(prev => {
-             // 중복 추가 방지
-             if (prev.length > 0 && prev[prev.length - 1].text.includes("시스템 알림")) return prev;
-             return [...prev, errorMsg];
-        });
+    const envKey = getGenAIKey();
+    if (envKey) {
+        setApiKey(envKey);
+    } else {
+        const storedKey = localStorage.getItem('GEMINI_API_KEY');
+        if (storedKey) {
+            setApiKey(storedKey);
+        } else {
+            setShowKeyInput(true);
+        }
     }
   }, []);
 
+  const handleKeySubmit = () => {
+    if (!manualKey.trim()) return;
+    const key = manualKey.trim();
+    localStorage.setItem('GEMINI_API_KEY', key);
+    setApiKey(key);
+    setShowKeyInput(false);
+  };
+
   useEffect(() => {
+    if (!apiKey) return; // 키가 없으면 대화 로드나 소개 시작 안 함
+
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -419,7 +443,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     } else if (userData) {
       startIntro();
     }
-  }, [userData]);
+  }, [userData, apiKey]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -427,7 +451,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     }
   }, [messages]);
 
-  // 완료 메시지 감지 및 저장 요청
   useEffect(() => {
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
@@ -440,7 +463,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
   const saveConsultationData = async () => {
     try {
         const fullChatLog = messages.map(m => `[${m.role}] ${m.text}`).join('\n\n');
-        
         await fetch(scriptUrl, {
             method: 'POST',
             body: JSON.stringify({
@@ -490,13 +512,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsTyping(true);
 
-    let apiKey = '';
-    try {
-        apiKey = process.env.API_KEY || '';
-    } catch(e) { }
-
     if (!apiKey) {
-      setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: API 키가 없습니다. 배포 설정을 확인해주세요." }]);
+      setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: API 키가 확인되지 않습니다. 페이지를 새로고침하여 키를 입력해주세요." }]);
       setIsTyping(false);
       return;
     }
@@ -529,6 +546,39 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
       setIsTyping(false);
     }
   };
+
+  // API 키 입력 화면 렌더링
+  if (showKeyInput) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+          <div className="text-center mb-6">
+             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔑</div>
+             <h2 className="text-xl font-bold text-slate-800 mb-2">API 키 입력 필요</h2>
+             <p className="text-sm text-slate-500 leading-relaxed">
+               서비스 이용을 위해<br/>
+               Google Gemini API 키를 입력해주세요.<br/>
+               <span className="text-xs text-slate-400 mt-1 block">(입력된 키는 브라우저에만 저장됩니다)</span>
+             </p>
+          </div>
+          <input 
+            type="password"
+            value={manualKey}
+            onChange={(e) => setManualKey(e.target.value)}
+            placeholder="AI Studio에서 발급받은 키 붙여넣기"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all mb-4"
+          />
+          <button 
+            onClick={handleKeySubmit}
+            disabled={!manualKey.trim()}
+            className="w-full bg-slate-900 text-white rounded-xl py-3 font-bold text-sm hover:bg-emerald-600 transition-all disabled:opacity-50"
+          >
+            저장하고 시작하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
