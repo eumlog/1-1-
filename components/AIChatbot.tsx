@@ -386,6 +386,28 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     - 사용자가 조건을 완화해주면 "감사합니다" 등의 표현과 함께 긍정적으로 수정 사항을 반영하세요.
   `;
 
+  // API 키 초기 진단 로직 추가
+  useEffect(() => {
+    let apiKey = '';
+    try {
+        apiKey = process.env.API_KEY || '';
+    } catch(e) { }
+
+    if (!apiKey) {
+        // 개발자 도구 및 UI에 경고 표시
+        console.error("⛔ [CRITICAL ERROR] Gemini API Key Missing!");
+        console.error("배포 환경(Vercel, GitHub Pages 등)의 Environment Variables에 'API_KEY'를 설정해야 합니다.");
+        
+        // 사용자가 보는 화면에 즉시 안내 메시지 추가
+        const errorMsg = { role: 'model' as const, text: "⚠ 시스템 알림: API 키가 설정되지 않았습니다.\n(관리자에게 'API_KEY' 환경 변수 설정을 요청해주세요.)" };
+        setMessages(prev => {
+             // 중복 추가 방지
+             if (prev.length > 0 && prev[prev.length - 1].text.includes("시스템 알림")) return prev;
+             return [...prev, errorMsg];
+        });
+    }
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -468,8 +490,19 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsTyping(true);
 
+    let apiKey = '';
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+        apiKey = process.env.API_KEY || '';
+    } catch(e) { }
+
+    if (!apiKey) {
+      setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: API 키가 없습니다. 배포 설정을 확인해주세요." }]);
+      setIsTyping(false);
+      return;
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [
@@ -490,7 +523,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, onClose, scriptU
       await appendMessages(parts);
 
     } catch (error) {
-      console.error(error);
+      console.error("Gemini API Error:", error);
       setMessages(prev => [...prev, { role: 'model', text: "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!" }]);
     } finally {
       setIsTyping(false);
