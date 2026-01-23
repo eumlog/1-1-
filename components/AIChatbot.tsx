@@ -16,7 +16,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 1. 데이터 매핑 (시트의 정확한 헤더명과 데이터를 매칭)
-  // 이 변수명들이 나중에 AI가 JSON 키로 사용할 헤더명입니다.
   const HEADERS = {
     NAME: '이름(*)',
     BIRTH: '생년월일(*)',
@@ -25,7 +24,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     SMOKING: '흡연 기준(*)',
     INCOME: '상대방의 연봉(소득) 기준이 있다면(*)',
     EDU: '선호 학력(*)',
-    RELIGION: '종교(*)', // 본인 종교지만, 상대 종교 조건으로도 매핑 가능 (보통 조건 컬럼이 따로 없으면 메모에 기록)
+    RELIGION: '종교(*)', 
     PRIORITY: '이상형 조건 순위(*)'
   };
 
@@ -55,6 +54,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const hasOption = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
   const isFlexible = (text: string) => /무관|상관\s*없|모두|다\s*괜찮|다\s*가능|전혀|오픈/.test(text);
   const isMaxLimit = (text: string) => /이하|미만|작은|아담/.test(text);
+
+  // 질문 여부 판단 헬퍼 (단순 안내 멘트인지, 질문인지 구분)
+  const isQuestion = (text: string) => text.includes('?') || text.includes('까') || text.includes('요?');
+  const getNoAskInstruction = (text: string) => isQuestion(text) ? '' : ' (이 멘트만 출력하고, "괜찮으신가요?" 같은 질문을 절대 덧붙이지 마세요.)';
 
   // 3. 질문 가이드 생성 로직
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
@@ -310,44 +313,44 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   
   steps.push({
     title: '나이 조율',
-    guide: `질문: "${ageGuide}"\n       - 답변 후: ${ageReaction}`
+    guide: `질문: "${ageGuide}"${getNoAskInstruction(ageGuide)}\n       - 답변 후: ${ageReaction}`
   });
   
   steps.push({
-    title: '키 조율 (말풍선 2개로 분리)',
-    guide: `- 말풍선 1: (이전 답변에 대한 반응) + "다음으로 키 조건 확인해 드릴게요. 키 조건을 너무 높게 잡으면 외모나 연봉 등 다른 조건이 아쉬운 분이 매칭될 수도 있어서요!"\n       - 말풍선 2: "${heightGuide}"\n       - 답변 후: ${heightReaction}`
+    title: '키 조율 (말풍선 적극 분리)',
+    guide: `- 말풍선 1: (이전 답변에 대한 반응)\n       - 말풍선 2: "다음으로 키 조건 확인해 드릴게요. 키 조건을 너무 높게 잡으면 외모나 연봉 등 다른 조건이 아쉬운 분이 매칭될 수도 있어서요!"\n       - 말풍선 3: "${heightGuide}"${getNoAskInstruction(heightGuide)}\n       - 답변 후: ${heightReaction}`
   });
 
   steps.push({
-    title: '지역 확인 (말풍선 2개로 분리)',
-    guide: `- 말풍선 1: (이전 답변에 대한 반응) + "다음으로 지역 확인 도와드릴게요."\n       - 말풍선 2: ${locationGuide}\n       - 답변 후: (지역은 비보장 시에도 '안내'만 하고 끝나므로 별도 비보장 고지 없이 "네 확인했습니다." 정도로 짧게 받고 넘어감)`
+    title: '지역 확인 (말풍선 적극 분리)',
+    guide: `- 말풍선 1: (이전 답변에 대한 반응)\n       - 말풍선 2: "다음으로 지역 확인 도와드릴게요."\n       - 말풍선 3: ${locationGuide}\n       - 답변 후: (지역은 비보장 시에도 '안내'만 하고 끝나므로 별도 비보장 고지 없이 "네 확인했습니다." 정도로 짧게 받고 넘어감)`
   });
 
   steps.push({
     title: '흡연 확인',
-    guide: `질문: "${smokingGuide}"\n       - 답변 후: ${smokingReaction}`
+    guide: `질문: "${smokingGuide}"${getNoAskInstruction(smokingGuide)}\n       - 답변 후: ${smokingReaction}`
   });
 
   if (religionGuide) {
     steps.push({
       title: '종교 확인',
-      guide: `질문: "${religionGuide}"\n       - 답변 후: (보장/비보장 여부에 따른 적절한 반응 출력)`
+      guide: `질문: "${religionGuide}"${getNoAskInstruction(religionGuide)}\n       - 답변 후: (보장/비보장 여부에 따른 적절한 반응 출력)`
     });
   }
 
   steps.push({
     title: '학력 조율',
-    guide: `질문: "${eduGuide}"\n       - 답변 후: ${eduReaction}`
+    guide: `질문: "${eduGuide}"${getNoAskInstruction(eduGuide)}\n       - 답변 후: ${eduReaction}`
   });
 
   steps.push({
     title: '연봉 조율',
-    guide: `질문: "${incomeGuide}"\n       - 답변 후: ${incomeReaction}`
+    guide: `질문: "${incomeGuide}"${getNoAskInstruction(incomeGuide)}\n       - 답변 후: ${incomeReaction}`
   });
 
   steps.push({
     title: '직업 질문',
-    guide: `질문: "${jobGuide}"\n       - 답변 후: ${jobReaction}`
+    guide: `질문: "${jobGuide}"${getNoAskInstruction(jobGuide)}\n       - 답변 후: ${jobReaction}`
   });
 
   steps.push({
@@ -393,8 +396,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       옵션 2: "넵! 선호하시는 대로 가점은 드리지만, 보장 조건은 아니라서 100% 일치하지 않을 수도 있다는 점 참고해 주세요."
       옵션 3: "알겠습니다. 최대한 반영해 보겠지만, 필수 조건 외에는 매칭 상황에 따라 조금 유연하게 진행될 수 있어요!"
 
-    [핵심 규칙 2: 말풍선 분리]
-    - **키 조율**과 **지역 확인** 단계에서는 반드시 줄바꿈 두 번(\\n\\n)을 사용하여 말풍선을 나누세요.
+    [핵심 규칙 2: 말풍선 분리 (모바일 가독성 최우선)]
+    - **긴 답변은 무조건 자르세요.** 모바일 화면에서 5줄 이상 넘어가지 않도록, **한 말풍선당 1~2문장**으로 짧게 끊어서 \`\\n\\n\`으로 구분하세요.
+    - 특히 **[이전 답변에 대한 반응]**과 **[다음 주제로 넘어가는 멘트]**가 합쳐지면 내용이 길어지므로, 이 둘은 **무조건** \`\\n\\n\`으로 분리해서 보내야 합니다.
 
     [핵심 규칙 3: 데이터 전송용 출력 (가장 중요)]
     - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
@@ -558,7 +562,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             role: m.role,
             parts: [{ text: m.text }]
           })),
-          { role: 'user', parts: [{ text: `[규칙: 키/지역 질문은 두 문단(\\n\\n)으로 분리, 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}` }] }
+          { role: 'user', parts: [{ text: `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}` }] }
         ],
         config: {
           systemInstruction: systemInstruction,
@@ -567,9 +571,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       });
 
       const aiText = response.text || "";
-      // JSON 블록이 포함되어 있어도 split으로 잘리지 않도록 주의해야 하지만, 
-      // 현재 로직은 \n\n으로 나눔. JSON이 마지막에 붙어오면 별도 파트로 나뉠 수 있음.
-      // 렌더링 시 appendMessages에서 JSON 블록은 필터링함.
       const parts = aiText.split('\n\n').filter(p => p.trim());
       await appendMessages(parts);
 

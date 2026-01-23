@@ -5,17 +5,47 @@ import { AIChatbot } from './components/AIChatbot';
 // Apps Script URL
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZAqXNezZvuEFXef4jpua4uw55kTO0-dcJ75MQcYiXNUdgyqCj5A91zEjAumrHGhvK/exec';
 
+// [비상용] 서버가 안 될 때 사용할 테스트 데이터
+const MOCK_DATA = {
+  '이름(*)': '테스트회원',
+  '생년월일(*)': '1995-01-01',
+  '성별(*)': '남자',
+  '거주지역(*)': '서울 강남구',
+  '보장 조건 선택 (중요)(*)': '나이|키|직업',
+  '선호 나이 범위(*)': '28살 ~ 32살',
+  '최소한의 허용 가능한 키(*)': '160cm 이상',
+  '흡연 기준(*)': '비흡연',
+  '상대방의 연봉(소득) 기준이 있다면(*)': '무관',
+  '선호 학력(*)': '대졸',
+  '종교(*)': '무교',
+  '이상형 조건 순위(*)': '1순위 외모, 2순위 나이',
+  '직업(*)': '개발자',
+  '키(*)': '175cm'
+};
+
+// [비상용] 테스트용 API 키 (실제 서버 배포 전 임시 사용)
+const MOCK_API_KEY = "AIzaSyC23sZt5QBQrsSoP_foU-pnHMLb1vqIRJo";
+
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginInfo, setLoginInfo] = useState({ name: '', pass: '' });
   const [currentUserData, setCurrentUserData] = useState<any>(null);
-  const [serverApiKey, setServerApiKey] = useState<string>(''); // 서버에서 받아온 API 키 저장
+  const [serverApiKey, setServerApiKey] = useState<string>(''); 
   const [showChatbot, setShowChatbot] = useState(false);
 
   const handleSecureLogin = async () => {
     if (!loginInfo.name || !loginInfo.pass) {
       alert('성함과 비밀번호를 모두 입력해주세요.');
       return;
+    }
+
+    // [비상용] 테스트 계정 로그인 로직 (서버 우회)
+    if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
+        alert('🔧 [테스트 모드]로 로그인합니다.\n서버 연결 없이 UI와 로직을 점검할 수 있습니다.');
+        setCurrentUserData(MOCK_DATA);
+        setServerApiKey(MOCK_API_KEY);
+        setShowChatbot(true);
+        return;
     }
 
     setIsLoading(true);
@@ -32,27 +62,31 @@ function App() {
       
       if (!response.ok) throw new Error('서버 네트워크 상태를 확인해주세요.');
       
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         throw new Error("서버에서 올바르지 않은 응답(HTML)이 왔습니다.");
+      }
+
       const result = await response.json();
 
       if (result.success && result.data) {
-        // 결과가 배열이면 첫 번째 데이터 사용
+        // "잘 되는 코드"는 data가 배열([userObject])로 옵니다.
         const userData = Array.isArray(result.data) ? result.data[0] : result.data;
         setCurrentUserData(userData);
         
-        // 서버에서 전달받은 API 키 저장
         if (result.apiKey) {
             setServerApiKey(result.apiKey);
         } else {
-            console.warn("서버에서 API 키가 전달되지 않았습니다. Apps Script 배포 버전을 확인해주세요.");
+            console.warn("서버에서 API 키가 누락되었습니다.");
         }
         
         setShowChatbot(true);
       } else {
         alert(result.error || '성함 또는 비밀번호가 일치하지 않습니다.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login Error:', error);
-      alert('로그인에 실패했습니다. 성함과 비밀번호를 다시 확인해주시거나, 관리자에게 문의바랍니다.');
+      alert(`서버 연결 실패: ${error.message}\n\n이름: "테스트", 비번: "1234"를 입력하면 테스트 모드로 진입할 수 있습니다.`);
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +97,7 @@ function App() {
       {showChatbot && currentUserData && (
         <AIChatbot 
           userData={currentUserData} 
-          apiKey={serverApiKey} // 서버에서 받은 키 전달
+          apiKey={serverApiKey} 
           onClose={() => setShowChatbot(false)} 
           scriptUrl={APPS_SCRIPT_URL}
         />
@@ -91,7 +125,7 @@ function App() {
                 <label className="text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Name / 성함</label>
                 <input 
                   type="text" 
-                  placeholder="성함을 입력하세요"
+                  placeholder="성함을 입력하세요 (테스트: 테스트)"
                   value={loginInfo.name}
                   onChange={e => setLoginInfo({...loginInfo, name: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
@@ -102,7 +136,7 @@ function App() {
                 <label className="text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Password / 비밀번호</label>
                 <input 
                   type="password" 
-                  placeholder="비밀번호를 입력하세요"
+                  placeholder="비밀번호를 입력하세요 (테스트: 1234)"
                   value={loginInfo.pass}
                   onChange={e => setLoginInfo({...loginInfo, pass: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
