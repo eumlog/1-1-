@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 interface AIChatbotProps {
   userData: any;
@@ -55,8 +55,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const isFlexible = (text: string) => /무관|상관\s*없|모두|다\s*괜찮|다\s*가능|전혀|오픈/.test(text);
   const isMaxLimit = (text: string) => /이하|미만|작은|아담/.test(text);
 
-  // 질문 여부 판단 헬퍼 (단순 안내 멘트인지, 질문인지 구분)
-  // 물음표나 의문형 어미가 없으면 질문을 덧붙이지 말라는 지침을 생성합니다.
+  // 질문 여부 판단 헬퍼
   const isQuestion = (text: string) => text.includes('?') || text.includes('까') || text.includes('요?');
   const getNoAskInstruction = (text: string) => isQuestion(text) ? '' : ' (이 멘트만 출력하고, "괜찮으신가요?" 같은 질문을 절대 덧붙이지 마세요. 그냥 멘트만 딱 끝내세요.)';
 
@@ -312,7 +311,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const steps = [];
   
-  // 여기서 getNoAskInstruction을 사용하여 '단순 안내'일 경우 되묻지 말라는 지침을 추가합니다.
   steps.push({
     title: '나이 조율',
     guide: `질문: "${ageGuide}"${getNoAskInstruction(ageGuide)}\n       - 답변 후: ${ageReaction}`
@@ -597,7 +595,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       if (formattedContents.length > 0 && formattedContents[0].role === 'model') {
         formattedContents.unshift({
           role: 'user',
-          parts: [{ text: "상담 매니저님 연결해주세요." }]
+          parts: [{ text: "상담 매니저님, 상담 시작해주세요. (시스템: 대화 연결)" }]
         });
       }
 
@@ -608,6 +606,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.2,
+          // Safety Settings: 배포 환경에서 "네" 같은 짧은 답변이 오해로 차단되는 것을 방지
+          safetySettings: [
+             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          ]
         }
       });
 
@@ -619,9 +624,16 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       console.error("Gemini API Error:", error);
       
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
-      if (error.message?.includes('400')) {
-         console.warn("Bad Request detected. This is likely due to malformed chat history.");
+      
+      // 403 오류나 400 오류 등을 감지하여 사용자에게 명확한 가이드를 제공
+      const errStr = error.toString();
+      if (errStr.includes('403') || errStr.includes('API key not valid')) {
+          alert("🚨 [배포 환경 설정 오류]\n\nGoogle Cloud Console에서 API Key 설정을 확인해주세요.\n\n1. 'HTTP 리퍼러' 제한이 걸려있다면, 현재 배포된 도메인을 추가해야 합니다.\n2. 혹은 'API Key Restrictions' 설정을 잠시 해제해보세요.");
+      } else if (errStr.includes('400')) {
+          // 구조적 문제일 수 있으므로 콘솔에 경고만 남김 (이미 로직으로 방어함)
+          console.warn("API 400 Error: Check conversation structure.");
       }
+      
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
     } finally {
       setIsTyping(false);
