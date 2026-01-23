@@ -628,7 +628,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       // 403 오류나 400 오류 등을 감지하여 사용자에게 명확한 가이드를 제공
       const errStr = error.toString();
       if (errStr.includes('403') || errStr.includes('API key not valid')) {
-          alert("🚨 [배포 환경 설정 오류]\n\nGoogle Cloud Console에서 API Key 설정을 확인해주세요.\n\n1. 'HTTP 리퍼러' 제한이 걸려있다면, 현재 배포된 도메인을 추가해야 합니다.\n2. 혹은 'API Key Restrictions' 설정을 잠시 해제해보세요.");
+          alert(`🚨 [API 키 도메인 등록 필요]\n\nGoogle Cloud Console에서 아래 도메인을 허용 리스트에 추가해야만 작동합니다.\n\n추가할 도메인:\nhttps://counsel.eumlog.co.kr\nhttps://counsel.eumlog.co.kr/*\n\n(반영까지 최대 5분 소요)`);
       } else if (errStr.includes('400')) {
           // 구조적 문제일 수 있으므로 콘솔에 경고만 남김 (이미 로직으로 방어함)
           console.warn("API 400 Error: Check conversation structure.");
