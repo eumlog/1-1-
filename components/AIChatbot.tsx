@@ -56,8 +56,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const isMaxLimit = (text: string) => /이하|미만|작은|아담/.test(text);
 
   // 질문 여부 판단 헬퍼 (단순 안내 멘트인지, 질문인지 구분)
+  // 물음표나 의문형 어미가 없으면 질문을 덧붙이지 말라는 지침을 생성합니다.
   const isQuestion = (text: string) => text.includes('?') || text.includes('까') || text.includes('요?');
-  const getNoAskInstruction = (text: string) => isQuestion(text) ? '' : ' (이 멘트만 출력하고, "괜찮으신가요?" 같은 질문을 절대 덧붙이지 마세요.)';
+  const getNoAskInstruction = (text: string) => isQuestion(text) ? '' : ' (이 멘트만 출력하고, "괜찮으신가요?" 같은 질문을 절대 덧붙이지 마세요. 그냥 멘트만 딱 끝내세요.)';
 
   // 3. 질문 가이드 생성 로직
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
@@ -311,6 +312,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const steps = [];
   
+  // 여기서 getNoAskInstruction을 사용하여 '단순 안내'일 경우 되묻지 말라는 지침을 추가합니다.
   steps.push({
     title: '나이 조율',
     guide: `질문: "${ageGuide}"${getNoAskInstruction(ageGuide)}\n       - 답변 후: ${ageReaction}`
@@ -547,23 +549,49 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     setIsTyping(true);
 
     if (!apiKey) {
-      // 서버에서 키를 못 받았을 경우
       setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: 시스템 설정(API Key)이 완료되지 않았습니다. 관리자에게 문의해주세요." }]);
       setIsTyping(false);
       return;
     }
 
     try {
+      // ---------------------------------------------------------
+      // [FIX] Consecutive Role Merging Logic
+      // Gemini API는 대화 턴(Turn)이 User -> Model -> User 순서여야 합니다.
+      // 연속된 같은 역할(특히 Model의 초기 메시지 3개)이 있으면 하나로 합쳐서 보내야 에러가 안 납니다.
+      // ---------------------------------------------------------
+      const formattedContents = [];
+      let lastRole = '';
+
+      // 1. 기존 대화 내역 처리
+      for (const msg of messages) {
+        const role = msg.role === 'model' ? 'model' : 'user';
+        const text = msg.text;
+
+        if (formattedContents.length > 0 && role === lastRole) {
+          // 이전 메시지와 역할이 같으면 병합
+          formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${text}`;
+        } else {
+          // 역할이 바뀌면 새로 추가
+          formattedContents.push({ role, parts: [{ text }] });
+          lastRole = role;
+        }
+      }
+
+      // 2. 현재 사용자 입력 추가 (규칙 프롬프트 포함)
+      const currentUserText = `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}`;
+      
+      if (lastRole === 'user' && formattedContents.length > 0) {
+        // 혹시 직전이 User였다면 병합
+        formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${currentUserText}`;
+      } else {
+        formattedContents.push({ role: 'user', parts: [{ text: currentUserText }] });
+      }
+
       const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [
-          ...messages.map(m => ({
-            role: m.role,
-            parts: [{ text: m.text }]
-          })),
-          { role: 'user', parts: [{ text: `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}` }] }
-        ],
+        contents: formattedContents,
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.2,
@@ -574,9 +602,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       const parts = aiText.split('\n\n').filter(p => p.trim());
       await appendMessages(parts);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini API Error:", error);
-      setMessages(prev => [...prev, { role: 'model', text: "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!" }]);
+      
+      let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
+      if (error.message?.includes('400')) {
+         console.warn("Bad Request detected. This is likely due to malformed chat history.");
+      }
+      setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
     } finally {
       setIsTyping(false);
     }
