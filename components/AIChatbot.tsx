@@ -588,6 +588,19 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         formattedContents.push({ role: 'user', parts: [{ text: currentUserText }] });
       }
 
+      // ---------------------------------------------------------
+      // [CRITICAL FIX] Web Deployment API Error Fix
+      // 웹 배포 환경에서는 "대화는 무조건 User부터 시작해야 한다"는 규칙이 엄격합니다.
+      // 현재 formattedContents의 첫 번째가 Model(인사말)이라면, 
+      // 그 앞에 가상의 User 메시지를 끼워넣어서 [User -> Model -> User] 순서를 강제로 맞춥니다.
+      // ---------------------------------------------------------
+      if (formattedContents.length > 0 && formattedContents[0].role === 'model') {
+        formattedContents.unshift({
+          role: 'user',
+          parts: [{ text: "상담 매니저님 연결해주세요." }]
+        });
+      }
+
       const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
