@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
@@ -628,7 +627,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       // 403 오류나 400 오류 등을 감지하여 사용자에게 명확한 가이드를 제공
       const errStr = error.toString();
       if (errStr.includes('403') || errStr.includes('API key not valid')) {
-          alert(`🚨 [API 키 도메인 등록 필요]\n\nGoogle Cloud Console에서 아래 도메인을 허용 리스트에 추가해야만 작동합니다.\n\n추가할 도메인:\nhttps://counsel.eumlog.co.kr\nhttps://counsel.eumlog.co.kr/*\n\n(반영까지 최대 5분 소요)`);
+          alert(`🚨 [API 키 오류]\n\n설정 변경 후 반영까지 최대 10분이 걸릴 수 있습니다.\n\n여전히 안 된다면:\n1. Google Cloud Console > 사용자 인증 정보\n2. API 키 설정에서 '애플리케이션 제한사항'을 [없음]으로 잠시 변경해보세요.\n3. [없음] 상태에서 작동한다면 도메인 오타가 원인입니다.`);
       } else if (errStr.includes('400')) {
           // 구조적 문제일 수 있으므로 콘솔에 경고만 남김 (이미 로직으로 방어함)
           console.warn("API 400 Error: Check conversation structure.");
