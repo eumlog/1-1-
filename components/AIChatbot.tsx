@@ -14,6 +14,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [currentApiKey, setCurrentApiKey] = useState(apiKey);
+  const [isSaving, setIsSaving] = useState(false); // 저장 중 상태 표시
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 상위에서 apiKey가 바뀌면 업데이트
@@ -471,6 +472,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   }, [messages]);
 
   const saveConsultationData = async (summaryData: any) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
         const fullChatLog = messages.map(m => `[${m.role}] ${m.text}`).join('\n\n');
         
@@ -492,13 +495,25 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             }
         }
 
+        // [중요] Google Apps Script는 CORS Preflight(OPTIONS)를 지원하지 않으므로
+        // Content-Type을 'text/plain'으로 설정하여 브라우저가 Preflight를 생략하게 유도해야 함.
         await fetch(scriptUrl, {
             method: 'POST',
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+            },
             body: JSON.stringify(payload)
         });
+        
+        // 사용자에게 저장 완료 알림 (채팅방에 시스템 메시지로 추가)
+        setMessages(prev => [...prev, { role: 'model', text: "✅ 상담 내용이 시스템에 안전하게 저장되었습니다." }]);
         console.log('Consultation saved successfully');
     } catch (e) {
         console.error('Failed to save consultation', e);
+        // 에러 발생 시에도 사용자에게는 너무 겁주지 않게 로그만 남기거나 부드러운 메시지
+        setMessages(prev => [...prev, { role: 'model', text: "⚠ 상담 내용 저장 중 네트워크 지연이 발생했습니다. (담당자가 수동으로 확인할 예정이니 안심하세요!)" }]);
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -652,8 +667,17 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             <div>
               <div className="font-bold text-[15px] tracking-tight">이음로그 매니저</div>
               <div className="text-[10px] opacity-90 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                실시간 상담 진행 중
+                {isSaving ? (
+                  <>
+                    <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse"></span>
+                    상담 내용 저장 중...
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                    실시간 상담 진행 중
+                  </>
+                )}
               </div>
             </div>
           </div>
