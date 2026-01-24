@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
@@ -634,6 +635,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
          setMessages(prev => [...prev, { role: 'model', text: "API 키가 유출되어 차단되었습니다. 개발자에게 새 키 발급을 요청하세요." }]);
          setIsTyping(false);
          return;
+      }
+
+      // 키 만료 (Key Expired)
+      if (errStr.includes('expired') || detailMsg.includes('expired')) {
+        alert(`🚨 [API 키 만료]\n\n현재 설정된 API 키의 유효 기간이 지났거나 만료되었습니다.\n\n[해결 방법]\n1. 구글 클라우드 콘솔에서 새 키를 생성하세요.\n2. App.tsx에 새 키를 입력해주세요.`);
+        setMessages(prev => [...prev, { role: 'model', text: "API 키가 만료되었습니다. 새 키가 필요합니다." }]);
+        setIsTyping(false);
+        return;
       }
 
       if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {

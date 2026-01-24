@@ -23,11 +23,12 @@ const MOCK_DATA = {
   '키(*)': '175cm'
 };
 
-// [중요] 테스트용 API 키 설정
-// 1. 구글 클라우드에서 '사용자 인증 정보' > 'API 키'를 새로 생성하세요.
-// 2. 생성된 키(AIzaSy...)를 복사해서 아래 따옴표("") 안에 붙여넣으세요.
-// 3. 주의: 이 키를 깃허브(GitHub) 등에 공개하면 즉시 차단됩니다. 로컬 테스트용으로만 쓰세요.
-const MOCK_API_KEY: string = "AIzaSyA_3RR4wiinzuQUvgUkw5LuVheP3_L2Wkw"; 
+// [중요] 보안 설정 (Vercel/Vite 배포용)
+// 코드는 깃허브에 그대로 올리셔도 됩니다. (코드 안에 키가 없으니까 안전합니다!)
+// 실제 키는 Vercel 관리자 페이지 > Settings > Environment Variables 에 등록하세요.
+// Key 이름: VITE_API_KEY  (주의: REACT_APP... 이 아닙니다!)
+// Value 값: AIzaSy... (발급받은 키 전체)
+const ENV_API_KEY = (import.meta as any).env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.REACT_APP_API_KEY : undefined);
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,14 +45,15 @@ function App() {
 
     // [비상용] 테스트 계정 로그인 로직 (서버 우회)
     if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
-        if (!MOCK_API_KEY || MOCK_API_KEY.length < 10) {
-            alert("⚠️ [설정 필요]\n\nApp.tsx 파일을 열고 'MOCK_API_KEY' 변수의 따옴표 안에\n새로 발급받은 Gemini API 키를 입력해주세요!\n(기존 키는 유출되어 차단되었습니다.)");
+        // 환경변수 키가 없으면 경고
+        if (!ENV_API_KEY) {
+            alert("⚠️ [설정 필요]\n\nAPI 키가 감지되지 않았습니다.\n\n[Vercel 배포 시]\nSettings > Environment Variables 메뉴에\n'VITE_API_KEY' 라는 이름으로 키를 등록하고 Redeploy 하세요.\n\n[로컬 테스트 시]\n.env 파일을 만들고 VITE_API_KEY=... 를 저장 후 재실행하세요.");
             return;
         }
 
         alert('🔧 [테스트 모드]로 로그인합니다.\n서버 연결 없이 UI와 로직을 점검할 수 있습니다.');
         setCurrentUserData(MOCK_DATA);
-        setServerApiKey(MOCK_API_KEY);
+        setServerApiKey(ENV_API_KEY);
         setShowChatbot(true);
         return;
     }
@@ -82,10 +84,13 @@ function App() {
         const userData = Array.isArray(result.data) ? result.data[0] : result.data;
         setCurrentUserData(userData);
         
+        // 1순위: 서버에서 내려준 키, 2순위: Vercel 환경변수 키
         if (result.apiKey) {
             setServerApiKey(result.apiKey);
+        } else if (ENV_API_KEY) {
+            setServerApiKey(ENV_API_KEY);
         } else {
-            console.warn("서버에서 API 키가 누락되었습니다.");
+            console.warn("API 키를 찾을 수 없습니다. (환경변수 또는 서버 응답 확인 필요)");
         }
         
         setShowChatbot(true);
