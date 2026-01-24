@@ -13,7 +13,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [messages, setMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [currentApiKey, setCurrentApiKey] = useState(apiKey);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 상위에서 apiKey가 바뀌면 업데이트
+  useEffect(() => {
+    if (apiKey) setCurrentApiKey(apiKey);
+  }, [apiKey]);
 
   // 1. 데이터 매핑 (시트의 정확한 헤더명과 데이터를 매칭)
   const HEADERS = {
@@ -423,7 +429,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   `;
 
   useEffect(() => {
-    if (!apiKey) return; 
+    // 키가 없으면 키 입력 프롬프트 자동 실행은 하지 않음 (헤더 버튼 이용 유도)
+    if (!currentApiKey) return; 
 
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -435,7 +442,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     } else if (userData) {
       startIntro();
     }
-  }, [userData, apiKey]);
+  }, [userData, currentApiKey]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -531,6 +538,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       }, 100);
     }
   };
+  
+  const handleUpdateApiKey = () => {
+      const newKey = prompt("새로운 API 키를 입력해주세요:", currentApiKey);
+      if (newKey && newKey.trim()) {
+          setCurrentApiKey(newKey.trim());
+          alert("API 키가 업데이트되었습니다. 다시 전송 버튼을 눌러보세요.");
+      }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -546,52 +561,36 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsTyping(true);
 
-    if (!apiKey) {
-      setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: 시스템 설정(API Key)이 완료되지 않았습니다. 관리자에게 문의해주세요." }]);
+    if (!currentApiKey) {
+      setMessages(prev => [...prev, { role: 'model', text: "⚠ 오류: 시스템 설정(API Key)이 완료되지 않았습니다. 우측 상단 열쇠 아이콘을 눌러 키를 설정해주세요." }]);
       setIsTyping(false);
       return;
     }
 
     try {
-      // ---------------------------------------------------------
-      // [FIX] Consecutive Role Merging Logic
-      // Gemini API는 대화 턴(Turn)이 User -> Model -> User 순서여야 합니다.
-      // 연속된 같은 역할(특히 Model의 초기 메시지 3개)이 있으면 하나로 합쳐서 보내야 에러가 안 납니다.
-      // ---------------------------------------------------------
       const formattedContents = [];
       let lastRole = '';
 
-      // 1. 기존 대화 내역 처리
       for (const msg of messages) {
         const role = msg.role === 'model' ? 'model' : 'user';
         const text = msg.text;
 
         if (formattedContents.length > 0 && role === lastRole) {
-          // 이전 메시지와 역할이 같으면 병합
           formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${text}`;
         } else {
-          // 역할이 바뀌면 새로 추가
           formattedContents.push({ role, parts: [{ text }] });
           lastRole = role;
         }
       }
 
-      // 2. 현재 사용자 입력 추가 (규칙 프롬프트 포함)
       const currentUserText = `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}`;
       
       if (lastRole === 'user' && formattedContents.length > 0) {
-        // 혹시 직전이 User였다면 병합
         formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${currentUserText}`;
       } else {
         formattedContents.push({ role: 'user', parts: [{ text: currentUserText }] });
       }
 
-      // ---------------------------------------------------------
-      // [CRITICAL FIX] Web Deployment API Error Fix
-      // 웹 배포 환경에서는 "대화는 무조건 User부터 시작해야 한다"는 규칙이 엄격합니다.
-      // 현재 formattedContents의 첫 번째가 Model(인사말)이라면, 
-      // 그 앞에 가상의 User 메시지를 끼워넣어서 [User -> Model -> User] 순서를 강제로 맞춥니다.
-      // ---------------------------------------------------------
       if (formattedContents.length > 0 && formattedContents[0].role === 'model') {
         formattedContents.unshift({
           role: 'user',
@@ -599,14 +598,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         });
       }
 
-      const ai = new GoogleGenAI({ apiKey: apiKey });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: formattedContents,
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.2,
-          // Safety Settings: 배포 환경에서 "네" 같은 짧은 답변이 오해로 차단되는 것을 방지
           safetySettings: [
              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -624,38 +622,19 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       console.error("Gemini API Error:", error);
       
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
-      
       const errStr = error.toString();
-      // 상세 에러 메시지 추출 시도
       let detailMsg = error.message || "알 수 없는 에러";
       
-      // 키 유출로 인한 차단 (Key Leaked)
-      if (errStr.includes('leaked') || detailMsg.includes('leaked')) {
-         alert(`🚨 [치명적 오류: API 키 유출 감지]\n\n구글 보안 시스템이 현재 사용 중인 API 키가 인터넷에 유출된 것을 감지하고 **영구 차단**했습니다.\n\n[해결 방법]\n1. Google Cloud Console에서 현재 키를 삭제하세요.\n2. **새로운 API 키**를 생성하세요.\n3. 코드(App.tsx)에 새 키를 붙여넣으세요.\n\n(이 키는 더 이상 사용할 수 없습니다.)`);
-         setMessages(prev => [...prev, { role: 'model', text: "API 키가 유출되어 차단되었습니다. 개발자에게 새 키 발급을 요청하세요." }]);
-         setIsTyping(false);
-         return;
-      }
-
-      // 키 만료 (Key Expired)
-      if (errStr.includes('expired') || detailMsg.includes('expired')) {
-        alert(`🚨 [API 키 만료]\n\n현재 설정된 API 키의 유효 기간이 지났거나 만료되었습니다.\n\n[해결 방법]\n1. 구글 클라우드 콘솔에서 새 키를 생성하세요.\n2. App.tsx에 새 키를 입력해주세요.`);
-        setMessages(prev => [...prev, { role: 'model', text: "API 키가 만료되었습니다. 새 키가 필요합니다." }]);
-        setIsTyping(false);
-        return;
-      }
-
-      if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {
-          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-          let causeMsg = "구글 클라우드 설정에서 API 호출이 거부되었습니다.";
-          
-          if (isLocalhost) {
-            causeMsg = "현재 로컬(localhost)에서 실행 중인데, API 키 설정에 '웹사이트 제한'이 걸려 있어서 차단된 상태입니다.";
-          }
-
-          alert(`🚨 [API 403 권한 오류 발생]\n\n${causeMsg}\n\n[구글 서버 응답 메시지]\n${detailMsg}\n\n[해결 방법]\n1. 구글 클라우드 콘솔 > 사용자 인증 정보 > API 키 설정 접속\n2. '애플리케이션 제한사항'을 **[없음 (None)]**으로 변경 후 저장\n3. (필수) 'Generative Language API'가 '사용 설정됨' 상태인지 확인`);
-      } else if (errStr.includes('400') || errStr.includes('API_KEY_INVALID')) {
-          alert(`🚨 [API 키 오류]\n\n입력된 API 키가 유효하지 않습니다.\n\n[구글 서버 응답 메시지]\n${detailMsg}`);
+      // 키 관련 에러 시 즉시 수정 유도
+      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('400') || errStr.includes('403')) {
+         const newKey = prompt(`🚨 API 키 오류가 발생했습니다 (${errStr.includes('expired') ? '만료됨' : '유효하지 않음'}).\n\n새로운 API 키를 입력해주시면 즉시 적용되어 계속 상담할 수 있습니다:`, "");
+         if (newKey && newKey.trim()) {
+             setCurrentApiKey(newKey.trim());
+             alert("API 키가 갱신되었습니다. 다시 '전송' 버튼을 눌러주세요.");
+             errorMsg = "API 키가 갱신되었습니다. 방금 입력하신 내용을 다시 전송해주세요!";
+         } else {
+             errorMsg = "API 키 오류로 인해 답변을 생성할 수 없습니다. 우측 상단 열쇠 아이콘을 눌러 키를 설정해주세요.";
+         }
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
@@ -679,6 +658,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button 
+                onClick={handleUpdateApiKey} 
+                className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
+                title="API 키 수동 설정"
+            >
+                🔑
+            </button>
             <button 
                 onClick={handleReset} 
                 className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"

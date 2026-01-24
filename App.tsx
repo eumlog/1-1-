@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AIChatbot } from './components/AIChatbot';
 
 // Apps Script URL
@@ -23,12 +23,11 @@ const MOCK_DATA = {
   '키(*)': '175cm'
 };
 
-// [중요] 보안 설정 (Vercel/Vite 배포용)
-// 코드는 깃허브에 그대로 올리셔도 됩니다. (코드 안에 키가 없으니까 안전합니다!)
-// 실제 키는 Vercel 관리자 페이지 > Settings > Environment Variables 에 등록하세요.
-// Key 이름: VITE_API_KEY  (주의: REACT_APP... 이 아닙니다!)
-// Value 값: AIzaSy... (발급받은 키 전체)
-const ENV_API_KEY = (import.meta as any).env?.VITE_API_KEY || (typeof process !== 'undefined' ? process.env?.REACT_APP_API_KEY : undefined);
+// [중요] API 키 로드 로직 (Vite/Next.js/CRA 호환)
+// @ts-ignore
+const VITE_ENV_KEY = import.meta.env?.VITE_API_KEY;
+const PROCESS_ENV_KEY = typeof process !== 'undefined' ? process.env?.REACT_APP_API_KEY : undefined;
+const ENV_API_KEY = VITE_ENV_KEY || PROCESS_ENV_KEY;
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +35,15 @@ function App() {
   const [currentUserData, setCurrentUserData] = useState<any>(null);
   const [serverApiKey, setServerApiKey] = useState<string>(''); 
   const [showChatbot, setShowChatbot] = useState(false);
+
+  useEffect(() => {
+    // 디버깅용: 키 로드 상태 확인 (보안을 위해 앞 5자리만 출력)
+    if (ENV_API_KEY) {
+      console.log(`✅ API Key Loaded from Env: ${ENV_API_KEY.substring(0, 5)}...`);
+    } else {
+      console.log("⚠️ No API Key found in Environment Variables.");
+    }
+  }, []);
 
   const handleSecureLogin = async () => {
     if (!loginInfo.name || !loginInfo.pass) {
@@ -45,15 +53,22 @@ function App() {
 
     // [비상용] 테스트 계정 로그인 로직 (서버 우회)
     if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
-        // 환경변수 키가 없으면 경고
-        if (!ENV_API_KEY) {
-            alert("⚠️ [설정 필요]\n\nAPI 키가 감지되지 않았습니다.\n\n[Vercel 배포 시]\nSettings > Environment Variables 메뉴에\n'VITE_API_KEY' 라는 이름으로 키를 등록하고 Redeploy 하세요.\n\n[로컬 테스트 시]\n.env 파일을 만들고 VITE_API_KEY=... 를 저장 후 재실행하세요.");
-            return;
+        let finalKey = ENV_API_KEY;
+
+        // 환경변수 키가 없으면 수동 입력 요청 (긴급 조치용)
+        if (!finalKey) {
+            const manualKey = prompt("⚠️ 환경변수에서 API 키를 찾을 수 없습니다.\n(Vercel 설정이 아직 적용되지 않았을 수 있습니다.)\n\n테스트를 위해 발급받은 API 키를 직접 입력해주세요:", "");
+            if (manualKey && manualKey.trim().length > 10) {
+                finalKey = manualKey.trim();
+            } else {
+                alert("API 키가 없어 테스트 모드를 실행할 수 없습니다.");
+                return;
+            }
         }
 
         alert('🔧 [테스트 모드]로 로그인합니다.\n서버 연결 없이 UI와 로직을 점검할 수 있습니다.');
         setCurrentUserData(MOCK_DATA);
-        setServerApiKey(ENV_API_KEY);
+        setServerApiKey(finalKey);
         setShowChatbot(true);
         return;
     }
@@ -90,7 +105,8 @@ function App() {
         } else if (ENV_API_KEY) {
             setServerApiKey(ENV_API_KEY);
         } else {
-            console.warn("API 키를 찾을 수 없습니다. (환경변수 또는 서버 응답 확인 필요)");
+            console.warn("API 키를 찾을 수 없습니다.");
+            // 키가 없어도 일단 진행 (Chatbot 컴포넌트 내부에서 키 입력 요청 가능)
         }
         
         setShowChatbot(true);
