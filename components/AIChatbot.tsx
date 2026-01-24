@@ -623,22 +623,48 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       }
 
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: formattedContents,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.2,
-          safetySettings: [
-             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ]
-        }
-      });
+      
+      // [핵심] API 호출 재시도 로직 추가 (최대 3회)
+      let aiText = "";
+      let lastError = null;
+      let success = false;
 
-      const aiText = response.text || "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: formattedContents,
+                config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.2,
+                safetySettings: [
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                ]
+                }
+            });
+            aiText = response.text || "";
+            success = true;
+            break; // 성공 시 루프 탈출
+        } catch (e: any) {
+            console.warn(`Attempt ${attempt + 1} failed:`, e);
+            lastError = e;
+            // 인증 오류나 API 키 오류는 재시도하지 않고 즉시 중단
+            const errStr = e.toString();
+            if (errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
+                throw e;
+            }
+            // 재시도 전 대기 (1초, 2초...)
+            await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+        }
+      }
+
+      if (!success && lastError) {
+          throw lastError;
+      }
+
       const parts = aiText.split('\n\n').filter(p => p.trim());
       await appendMessages(parts);
 
