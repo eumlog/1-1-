@@ -14,22 +14,32 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [messages, setMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [currentApiKey, setCurrentApiKey] = useState(apiKey);
+  
+  // [수정] API 키 초기화: 로컬 스토리지 > Props 순서로 적용
+  const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
+    const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
+    return saved || apiKey || '';
+  });
+
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 상위에서 apiKey가 바뀌면 업데이트
+  // [수정] Props로 넘어온 apiKey가 바뀔 때, 로컬 저장된 키가 없으면 업데이트
   useEffect(() => {
-    if (apiKey) setCurrentApiKey(apiKey);
+    const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
+    if (saved) {
+        setCurrentApiKey(saved);
+    } else if (apiKey) {
+        setCurrentApiKey(apiKey);
+    }
   }, [apiKey]);
 
-  // [핵심] 안전한 문자열 변환 함수 (Blank Screen 방지용)
+  // [핵심] 안전한 문자열 변환 함수
   const safeStr = (val: any): string => {
     if (val === undefined || val === null) return '';
     return String(val).trim();
   };
 
-  // 1. 데이터 매핑 (시트 헤더와 매칭, AJ열 사용자도 안전하게 처리)
   const HEADERS = {
     NAME: '이름(*)',
     BIRTH: '생년월일(*)',
@@ -42,7 +52,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     PRIORITY: '이상형 조건 순위(*)'
   };
 
-  // 모든 변수에 safeStr 적용
   const name = safeStr(userData?.[HEADERS.NAME] || userData?.name || '회원');
   const birthYear = safeStr(userData?.[HEADERS.BIRTH]);
   const gender = safeStr(userData?.['성별(*)']);
@@ -64,7 +73,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const conditionStr = selectedConditions.length > 0 ? selectedConditions.join(', ') : '없음';
   const planName = selectedConditions.length >= 3 ? '프리미엄' : '베이직';
 
-  // 2. 로직 헬퍼
   const isSelected = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
   const hasOption = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
   const isFlexible = (text: string) => /무관|상관\s*없|모두|다\s*괜찮|다\s*가능|전혀|오픈/.test(text);
@@ -73,12 +81,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const isQuestion = (text: string) => text ? (text.includes('?') || text.includes('까') || text.includes('요?')) : false;
   const getNoAskInstruction = (text: string) => isQuestion(text) ? '' : ' (이 멘트만 출력하고, "괜찮으신가요?" 같은 질문을 절대 덧붙이지 마세요. 그냥 멘트만 딱 끝내세요.)';
 
-  // 3. 질문 가이드 생성 로직
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
   const REACTION_EASY = "(조건이 까다롭지 않으므로, '비보장 안내' 멘트를 절대 하지 말고 '네 확인했습니다' 정도로 깔끔하게 답변)";
   const REACTION_CONDITIONAL = "(사용자가 제안을 수락하거나 유연한 태도(괜찮다 등)를 보이면 '비보장 안내' 멘트를 절대 하지 말고 '네, 그럼 해당 기준으로 넓혀서 매칭해드리겠습니다'라고 변경 사항을 확정하세요. 반면 까다로운 조건을 고집하면 보장/비보장 여부에 따라 반응하세요.)";
 
-  // [나이 가이드]
   let ageGuide = '';
   let ageReaction = REACTION_DEFAULT;
 
@@ -147,7 +153,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     ageGuide = `나이 조건을 선택해주셨는데, 선호하시는 구체적인 연령대가 있으실까요?`;
   }
 
-  // [키 가이드]
   let heightGuide = '';
   let heightReaction = REACTION_DEFAULT;
 
@@ -189,7 +194,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     heightGuide = `키 조건을 선택해주셨는데, 구체적으로 선호하시는 키 기준이 있으실까요?`;
   }
 
-  // [지역 가이드]
   let locationGuide = '';
   if (isSelected('지역')) {
     if (hasOption('전남')) {
@@ -213,7 +217,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     locationGuide = `"지역이 필수조건은 아니셔서 선호하시는 지역(거주지)으로 가점 매칭되지만, 인근이나 타 지역 분이 나올 수도 있는 점 참고부탁드려요!" 라고 안내만 하고(질문 금지) 답변을 기다리세요.`;
   }
 
-  // [흡연 가이드]
   let smokingGuide = '';
   let smokingReaction = REACTION_DEFAULT;
 
@@ -234,7 +237,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     smokingGuide = `흡연 조건을 선택해주셨는데, 비흡연자만 원하시나요?`;
   }
 
-  // [종교 가이드]
   let religionGuide = '';
   if (isSelected('종교')) {
     if (religion === '무교') {
@@ -252,7 +254,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   }
 
-  // [학력 가이드]
   let eduGuide = '';
   let eduReaction = REACTION_DEFAULT;
   const isHighEdu = (prefEdu.includes('대졸') || prefEdu.includes('4년제') || prefEdu.includes('대학원')) 
@@ -278,7 +279,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     eduReaction = REACTION_EASY;
   }
 
-  // [연봉 가이드]
   let incomeGuide = '';
   let incomeReaction = REACTION_DEFAULT;
 
@@ -319,7 +319,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     incomeGuide = `연봉(경제력) 조건을 선택해주셨는데, 어느 정도 기준을 원하시나요?`;
   }
 
-  // [직업 가이드]
   let jobGuide = `직업은 직장인을 선호하시는걸까요? 아니면 자영업도 가능하실까요?`;
   let jobReaction = REACTION_CONDITIONAL;
   
@@ -561,11 +560,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   };
   
+  // [수정] 수동 키 업데이트 시 로컬 스토리지에 저장하여 영구 유지
   const handleUpdateApiKey = () => {
-      const newKey = prompt("새로운 API 키를 입력해주세요:", currentApiKey);
+      const newKey = prompt("새로운 API 키를 입력해주세요 (브라우저에 저장됩니다):", currentApiKey);
       if (newKey && newKey.trim()) {
-          setCurrentApiKey(newKey.trim());
-          alert("API 키가 업데이트되었습니다. 다시 전송 버튼을 눌러보세요.");
+          const k = newKey.trim();
+          localStorage.setItem('GEMINI_LOCAL_API_KEY', k);
+          setCurrentApiKey(k);
+          alert("API 키가 저장되었습니다. 브라우저를 닫거나 새로고침해도 유지됩니다.");
       }
   };
 
@@ -647,10 +649,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       const errStr = error.toString();
       
       if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('400') || errStr.includes('403')) {
-         const newKey = prompt(`🚨 API 키 오류가 발생했습니다 (${errStr.includes('expired') ? '만료됨' : '유효하지 않음'}).\n\n새로운 API 키를 입력해주시면 즉시 적용되어 계속 상담할 수 있습니다:`, "");
+         const newKey = prompt(`🚨 API 키 오류가 발생했습니다 (${errStr.includes('expired') ? '만료됨' : '유효하지 않음'}).\n\n새로운 API 키를 입력해주시면 즉시 적용되어 계속 상담할 수 있습니다:`, currentApiKey);
          if (newKey && newKey.trim()) {
-             setCurrentApiKey(newKey.trim());
-             alert("API 키가 갱신되었습니다. 다시 '전송' 버튼을 눌러주세요.");
+             const k = newKey.trim();
+             localStorage.setItem('GEMINI_LOCAL_API_KEY', k); // [수정] 오류 복구 시에도 영구 저장
+             setCurrentApiKey(k);
+             alert("API 키가 갱신 및 저장되었습니다. 다시 '전송' 버튼을 눌러주세요.");
              errorMsg = "API 키가 갱신되었습니다. 방금 입력하신 내용을 다시 전송해주세요!";
          } else {
              errorMsg = "API 키 오류로 인해 답변을 생성할 수 없습니다. 우측 상단 열쇠 아이콘을 눌러 키를 설정해주세요.";
