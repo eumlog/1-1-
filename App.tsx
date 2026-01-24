@@ -23,8 +23,9 @@ const MOCK_DATA = {
   '키(*)': '175cm'
 };
 
-// [비상용] 테스트용 API 키 (실제 서버 배포 전 임시 사용)
-const MOCK_API_KEY = "AIzaSyC23sZt5QBQrsSoP_foU-pnHMLb1vqIRJo";
+// [중요] 테스트용 API 키 설정
+// 아래 따옴표("") 안에 발급받으신 Gemini API 키를 붙여넣으세요.
+const MOCK_API_KEY: string = "AIzaSyC23sZt5QBQrsSoP_foU-pnHMLb1vqIRJo"; 
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +42,11 @@ function App() {
 
     // [비상용] 테스트 계정 로그인 로직 (서버 우회)
     if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
+        if (!MOCK_API_KEY || MOCK_API_KEY.length < 10) {
+            alert("⚠️ [설정 필요]\n\nApp.tsx 파일을 열고 'MOCK_API_KEY' 변수의 따옴표 안에\n본인의 Gemini API 키를 입력해주세요!");
+            return;
+        }
+
         alert('🔧 [테스트 모드]로 로그인합니다.\n서버 연결 없이 UI와 로직을 점검할 수 있습니다.');
         setCurrentUserData(MOCK_DATA);
         setServerApiKey(MOCK_API_KEY);

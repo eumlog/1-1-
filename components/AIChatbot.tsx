@@ -624,13 +624,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
       
-      // 403 오류나 400 오류 등을 감지하여 사용자에게 명확한 가이드를 제공
       const errStr = error.toString();
-      if (errStr.includes('403') || errStr.includes('API key not valid')) {
-          alert(`🚨 [API 키 오류]\n\n설정 변경 후 반영까지 최대 10분이 걸릴 수 있습니다.\n\n여전히 안 된다면:\n1. Google Cloud Console > 사용자 인증 정보\n2. API 키 설정에서 '애플리케이션 제한사항'을 [없음]으로 잠시 변경해보세요.\n3. [없음] 상태에서 작동한다면 도메인 오타가 원인입니다.`);
-      } else if (errStr.includes('400')) {
-          // 구조적 문제일 수 있으므로 콘솔에 경고만 남김 (이미 로직으로 방어함)
-          console.warn("API 400 Error: Check conversation structure.");
+      // 403: Permission Denied (API 미사용 또는 키 제한 등)
+      // 400: Bad Request (잘못된 요청 - 키 자체가 틀렸을 때)
+      if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {
+          alert(`🚨 [API 권한 오류]\n\nGoogle Cloud Console에서 'Gemini API' 사용 설정이 켜져 있는지 확인해주세요.\n(키가 있어도 서비스를 켜야 합니다)`);
+      } else if (errStr.includes('400') || errStr.includes('API_KEY_INVALID')) {
+          alert(`🚨 [API 키 오류]\n\n입력된 API 키가 올바르지 않습니다.\n\n테스트 모드라면 App.tsx 파일의 'MOCK_API_KEY' 부분에 본인의 실제 키를 붙여넣으셨는지 확인해주세요.`);
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
