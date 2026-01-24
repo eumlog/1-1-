@@ -37,7 +37,6 @@ function App() {
   const [showChatbot, setShowChatbot] = useState(false);
 
   useEffect(() => {
-    // 디버깅용: 키 로드 상태 확인 (보안을 위해 앞 5자리만 출력)
     if (ENV_API_KEY) {
       console.log(`✅ API Key Loaded from Env: ${ENV_API_KEY.substring(0, 5)}...`);
     } else {
@@ -51,11 +50,9 @@ function App() {
       return;
     }
 
-    // [비상용] 테스트 계정 로그인 로직 (서버 우회)
-    if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
+    if ((loginInfo.name === '테스트' || loginInfo.name === '관리자') && loginInfo.pass === '1234') {
         let finalKey = ENV_API_KEY;
 
-        // 환경변수 키가 없으면 수동 입력 요청 (긴급 조치용)
         if (!finalKey) {
             const manualKey = prompt("⚠️ 환경변수에서 API 키를 찾을 수 없습니다.\n(Vercel 설정이 아직 적용되지 않았을 수 있습니다.)\n\n테스트를 위해 발급받은 API 키를 직접 입력해주세요:", "");
             if (manualKey && manualKey.trim().length > 10) {
@@ -66,7 +63,7 @@ function App() {
             }
         }
 
-        alert('🔧 [테스트 모드]로 로그인합니다.\n서버 연결 없이 UI와 로직을 점검할 수 있습니다.');
+        alert('🔧 [테스트 모드]로 로그인합니다.');
         setCurrentUserData(MOCK_DATA);
         setServerApiKey(finalKey);
         setShowChatbot(true);
@@ -95,18 +92,14 @@ function App() {
       const result = await response.json();
 
       if (result.success && result.data) {
-        // "잘 되는 코드"는 data가 배열([userObject])로 옵니다.
+        // [수정] 배열이면 첫 번째 요소 사용, 아니면 그대로 사용 (Apps Script 응답 구조 대응)
         const userData = Array.isArray(result.data) ? result.data[0] : result.data;
         setCurrentUserData(userData);
         
-        // 1순위: 서버에서 내려준 키, 2순위: Vercel 환경변수 키
         if (result.apiKey) {
             setServerApiKey(result.apiKey);
         } else if (ENV_API_KEY) {
             setServerApiKey(ENV_API_KEY);
-        } else {
-            console.warn("API 키를 찾을 수 없습니다.");
-            // 키가 없어도 일단 진행 (Chatbot 컴포넌트 내부에서 키 입력 요청 가능)
         }
         
         setShowChatbot(true);
@@ -121,6 +114,8 @@ function App() {
     }
   };
 
+  const isAdminUser = ['테스트', '관리자', 'admin'].includes(loginInfo.name.trim());
+
   return (
     <div className="min-h-screen bg-[#f8fafc] font-[Pretendard] selection:bg-emerald-100 selection:text-emerald-900">
       {showChatbot && currentUserData && (
@@ -129,6 +124,7 @@ function App() {
           apiKey={serverApiKey} 
           onClose={() => setShowChatbot(false)} 
           scriptUrl={APPS_SCRIPT_URL}
+          isAdmin={isAdminUser}
         />
       )}
 
@@ -154,7 +150,7 @@ function App() {
                 <label className="text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Name / 성함</label>
                 <input 
                   type="text" 
-                  placeholder="성함을 입력하세요 (테스트: 테스트)"
+                  placeholder="성함을 입력하세요"
                   value={loginInfo.name}
                   onChange={e => setLoginInfo({...loginInfo, name: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
@@ -165,7 +161,7 @@ function App() {
                 <label className="text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Password / 비밀번호</label>
                 <input 
                   type="password" 
-                  placeholder="비밀번호를 입력하세요 (테스트: 1234)"
+                  placeholder="비밀번호를 입력하세요"
                   value={loginInfo.pass}
                   onChange={e => setLoginInfo({...loginInfo, pass: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
