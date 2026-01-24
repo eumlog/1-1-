@@ -628,7 +628,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       // 403: Permission Denied (API 미사용 또는 키 제한 등)
       // 400: Bad Request (잘못된 요청 - 키 자체가 틀렸을 때)
       if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {
-          alert(`🚨 [API 권한 오류]\n\nGoogle Cloud Console에서 'Gemini API' 사용 설정이 켜져 있는지 확인해주세요.\n(키가 있어도 서비스를 켜야 합니다)`);
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (isLocalhost) {
+             alert(`🚨 [로컬 실행 오류]\n\n현재 내 컴퓨터(localhost)에서 실행 중인데, Google Cloud API 키 설정에서 차단되었습니다.\n\n[해결 방법]\nGoogle Cloud Console > 사용자 인증 정보 > API 키 설정에서\n'애플리케이션 제한사항'을 **[없음 (None)]**으로 변경하고 저장하세요.\n(웹사이트 제한을 걸면 로컬에서 작동하지 않습니다.)`);
+          } else {
+             alert(`🚨 [API 권한 오류]\n\n다음 두 가지를 꼭 확인해주세요!\n\n1. Google Cloud에서 'Gemini API'가 사용 설정(Enable) 되어 있는지 확인.\n2. **API 키 제한(Key Restrictions)**이 걸려 있는지 확인.\n(키 설정에서 'API 제한'을 뒀다면 'Generative Language API'를 반드시 체크해야 합니다!)`);
+          }
       } else if (errStr.includes('400') || errStr.includes('API_KEY_INVALID')) {
           alert(`🚨 [API 키 오류]\n\n입력된 API 키가 올바르지 않습니다.\n\n테스트 모드라면 App.tsx 파일의 'MOCK_API_KEY' 부분에 본인의 실제 키를 붙여넣으셨는지 확인해주세요.`);
       }
