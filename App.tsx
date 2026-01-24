@@ -24,8 +24,10 @@ const MOCK_DATA = {
 };
 
 // [중요] 테스트용 API 키 설정
-// 아래 따옴표("") 안에 발급받으신 Gemini API 키를 붙여넣으세요.
-const MOCK_API_KEY: string = "AIzaSyC23sZt5QBQrsSoP_foU-pnHMLb1vqIRJo"; 
+// 1. 구글 클라우드에서 '사용자 인증 정보' > 'API 키'를 새로 생성하세요.
+// 2. 생성된 키(AIzaSy...)를 복사해서 아래 따옴표("") 안에 붙여넣으세요.
+// 3. 주의: 이 키를 깃허브(GitHub) 등에 공개하면 즉시 차단됩니다. 로컬 테스트용으로만 쓰세요.
+const MOCK_API_KEY: string = "AIzaSyA_3RR4wiinzuQUvgUkw5LuVheP3_L2Wkw"; 
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +45,7 @@ function App() {
     // [비상용] 테스트 계정 로그인 로직 (서버 우회)
     if (loginInfo.name === '테스트' && loginInfo.pass === '1234') {
         if (!MOCK_API_KEY || MOCK_API_KEY.length < 10) {
-            alert("⚠️ [설정 필요]\n\nApp.tsx 파일을 열고 'MOCK_API_KEY' 변수의 따옴표 안에\n본인의 Gemini API 키를 입력해주세요!");
+            alert("⚠️ [설정 필요]\n\nApp.tsx 파일을 열고 'MOCK_API_KEY' 변수의 따옴표 안에\n새로 발급받은 Gemini API 키를 입력해주세요!\n(기존 키는 유출되어 차단되었습니다.)");
             return;
         }
 

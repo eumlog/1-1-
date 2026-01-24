@@ -628,6 +628,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       // 상세 에러 메시지 추출 시도
       let detailMsg = error.message || "알 수 없는 에러";
       
+      // 키 유출로 인한 차단 (Key Leaked)
+      if (errStr.includes('leaked') || detailMsg.includes('leaked')) {
+         alert(`🚨 [치명적 오류: API 키 유출 감지]\n\n구글 보안 시스템이 현재 사용 중인 API 키가 인터넷에 유출된 것을 감지하고 **영구 차단**했습니다.\n\n[해결 방법]\n1. Google Cloud Console에서 현재 키를 삭제하세요.\n2. **새로운 API 키**를 생성하세요.\n3. 코드(App.tsx)에 새 키를 붙여넣으세요.\n\n(이 키는 더 이상 사용할 수 없습니다.)`);
+         setMessages(prev => [...prev, { role: 'model', text: "API 키가 유출되어 차단되었습니다. 개발자에게 새 키 발급을 요청하세요." }]);
+         setIsTyping(false);
+         return;
+      }
+
       if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {
           const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           let causeMsg = "구글 클라우드 설정에서 API 호출이 거부되었습니다.";
