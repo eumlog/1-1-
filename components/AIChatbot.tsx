@@ -15,22 +15,29 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   
-  // [수정] API 키 초기화: 로컬 스토리지 > Props 순서로 적용
+  // [수정] API 키 초기화: 로컬 스토리지 확인 -> Props 확인 -> 빈 값
   const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
     const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
-    return saved || apiKey || '';
+    // 저장된 키가 유효(길이 10 이상)하면 우선 사용, 아니면 Props 사용
+    return (saved && saved.length > 10) ? saved : (apiKey || '');
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // [수정] Props로 넘어온 apiKey가 바뀔 때, 로컬 저장된 키가 없으면 업데이트
+  // [핵심 수정] API 키 동기화 로직 개선
   useEffect(() => {
-    const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
-    if (saved) {
-        setCurrentApiKey(saved);
-    } else if (apiKey) {
+    // 1. 서버(Props)에서 유효한 키가 넘어왔다면 -> 무조건 신뢰하고 저장소 업데이트
+    if (apiKey && apiKey.trim().length > 10) {
         setCurrentApiKey(apiKey);
+        localStorage.setItem('GEMINI_LOCAL_API_KEY', apiKey);
+    } 
+    // 2. 서버 키가 없다면 -> 로컬 스토리지에 저장된 키가 있는지 재확인 (새로고침/재접속 대비)
+    else {
+        const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
+        if (saved && saved.trim().length > 10) {
+            setCurrentApiKey(saved);
+        }
     }
   }, [apiKey]);
 
@@ -694,9 +701,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md h-[92vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20">
-        <div className="bg-emerald-600 p-5 text-white flex justify-between items-center shrink-0 shadow-lg z-10">
+    // [수정] 모바일 Full Screen Layout 적용 (h-[100dvh] for keyboard resize support)
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center md:p-4">
+      <div className="bg-white w-full h-[100dvh] md:h-[92vh] md:max-w-md md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20">
+        <div className="bg-emerald-600 p-4 md:p-5 text-white flex justify-between items-center shrink-0 shadow-lg z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/10">👩‍💼</div>
             <div>
@@ -716,7 +724,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             {isAdmin && (
               <button 
                   onClick={handleUpdateApiKey} 
@@ -763,26 +771,26 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
           )}
         </div>
 
-        <div className="p-4 bg-white border-t border-slate-100 shrink-0 relative">
+        <div className="p-3 md:p-4 bg-white border-t border-slate-100 shrink-0 relative pb-safe">
           <div className="flex gap-2">
             <input 
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={isTyping ? "매니저가 답변 입력 중..." : "내용을 입력해주세요."}
+              placeholder={isTyping ? "입력 중..." : "내용 입력"}
               disabled={isTyping}
-              className={`flex-1 rounded-2xl px-5 py-4 text-sm outline-none transition-all shadow-inner 
+              className={`flex-1 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-4 text-sm outline-none transition-all shadow-inner 
                 ${isTyping 
                   ? 'bg-slate-50 border border-slate-100 opacity-70 placeholder:text-slate-400' 
-                  : 'bg-white border-2 border-emerald-500 ring-4 ring-emerald-500/10 placeholder:text-emerald-600 placeholder:font-bold'
+                  : 'bg-white border-2 border-emerald-500 ring-2 ring-emerald-500/10 placeholder:text-emerald-600 placeholder:font-bold'
                 }
               `}
             />
             <button 
               onClick={() => handleSend()}
               disabled={!input.trim() || isTyping}
-              className="bg-slate-900 text-white px-6 rounded-2xl font-bold text-sm hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-30 shadow-lg"
+              className="bg-slate-900 text-white px-5 md:px-6 rounded-xl md:rounded-2xl font-bold text-sm hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-30 shadow-lg whitespace-nowrap"
             >
               전송
             </button>
