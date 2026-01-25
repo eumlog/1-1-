@@ -117,7 +117,7 @@ function App() {
   const isAdminUser = ['테스트', '관리자', 'admin'].includes(loginInfo.name.trim());
 
   return (
-    // [수정] 모바일 키보드 대응: min-h-screen 대신 min-h-[100dvh] 사용, flex-col 및 justify-center 사용하되 overflow-y-auto 허용
+    // [수정] 모바일 키보드 대응: min-h-[100dvh], flex-col, overflow-y-auto
     <div className="min-h-[100dvh] bg-[#f8fafc] font-[Pretendard] selection:bg-emerald-100 selection:text-emerald-900 flex flex-col justify-center overflow-y-auto">
       {showChatbot && currentUserData && (
         <AIChatbot 
@@ -130,10 +130,11 @@ function App() {
       )}
 
       <div className="w-full max-w-4xl px-4 md:px-6 py-6 md:py-12 mx-auto">
-        <header className="text-center mb-8 md:mb-16 animate-in fade-in slide-in-from-top-4 duration-1000">
+        <header className="text-center mb-6 md:mb-16 animate-in fade-in slide-in-from-top-4 duration-1000">
           <div className="inline-block bg-emerald-100 text-emerald-700 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-[11px] font-black mb-3 md:mb-4 tracking-widest uppercase shadow-sm border border-emerald-200/50">Eum-Log Manager AI</div>
-          <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight mb-2 md:mb-4 leading-tight">이음로그 맞춤 상담</h1>
-          <p className="text-slate-500 font-medium text-xs md:text-base px-4 break-keep">전담 매니저가 회원님의 프로필을 분석하여 1:1 상담을 시작합니다.</p>
+          {/* [수정] 폰트 사이즈 축소 text-3xl -> text-2xl */}
+          <h1 className="text-2xl md:text-5xl font-black text-slate-800 tracking-tight mb-2 md:mb-4 leading-tight">이음로그 맞춤 상담</h1>
+          <p className="text-slate-500 font-medium text-[11px] md:text-base px-4 break-keep">전담 매니저가 회원님의 프로필을 분석하여 1:1 상담을 시작합니다.</p>
         </header>
 
         <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 pb-10 md:pb-0">
@@ -142,20 +143,21 @@ function App() {
             
             <div className="text-center mb-6 md:mb-10 mt-2">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-emerald-500 text-white rounded-2xl md:rounded-3xl flex items-center justify-center text-3xl md:text-4xl mx-auto mb-4 md:mb-6 shadow-lg md:shadow-xl shadow-emerald-200 rotate-3 transition-transform hover:rotate-0 duration-300">👩‍💼</div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-1 md:mb-2">상담 매니저 연결</h2>
+              <h2 className="text-lg md:text-2xl font-bold text-slate-800 mb-1 md:mb-2">상담 매니저 연결</h2>
               <p className="text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] ml-1">Identity Verification</p>
             </div>
             
             <div className="space-y-4 md:space-y-6">
               <div className="group space-y-1.5 md:space-y-2">
                 <label className="text-[10px] md:text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Name / 성함</label>
+                {/* [수정] 입력 폰트 축소 text-sm -> text-[13px] */}
                 <input 
                   type="text" 
                   placeholder="성함을 입력하세요"
                   value={loginInfo.name}
                   onChange={e => setLoginInfo({...loginInfo, name: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
-                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-xl md:rounded-2xl px-5 py-3.5 md:px-6 md:py-4 text-sm outline-none transition-all placeholder:text-slate-300"
+                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-xl md:rounded-2xl px-5 py-3.5 md:px-6 md:py-4 text-[13px] md:text-sm outline-none transition-all placeholder:text-slate-300"
                 />
               </div>
               <div className="group space-y-1.5 md:space-y-2">
@@ -166,14 +168,14 @@ function App() {
                   value={loginInfo.pass}
                   onChange={e => setLoginInfo({...loginInfo, pass: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
-                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-xl md:rounded-2xl px-5 py-3.5 md:px-6 md:py-4 text-sm outline-none transition-all placeholder:text-slate-300"
+                  className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-xl md:rounded-2xl px-5 py-3.5 md:px-6 md:py-4 text-[13px] md:text-sm outline-none transition-all placeholder:text-slate-300"
                 />
               </div>
               
               <button 
                 onClick={handleSecureLogin}
                 disabled={isLoading}
-                className="w-full bg-slate-900 text-white rounded-xl md:rounded-2xl py-4 md:py-5 font-bold text-base md:text-lg hover:bg-emerald-600 shadow-lg md:shadow-xl shadow-slate-200 transition-all mt-2 active:scale-[0.98] disabled:opacity-50"
+                className="w-full bg-slate-900 text-white rounded-xl md:rounded-2xl py-4 md:py-5 font-bold text-[15px] md:text-lg hover:bg-emerald-600 shadow-lg md:shadow-xl shadow-slate-200 transition-all mt-2 active:scale-[0.98] disabled:opacity-50"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">

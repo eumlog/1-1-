@@ -741,7 +741,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/10">👩‍💼</div>
             <div>
-              <div className="font-bold text-[15px] tracking-tight">이음로그 매니저</div>
+              {/* [수정] 헤더 타이틀 글씨 크기 축소 text-[15px] -> text-[14px] */}
+              <div className="font-bold text-[14px] md:text-[15px] tracking-tight">이음로그 매니저</div>
               <div className="text-[10px] opacity-90 flex items-center gap-1">
                 {isSaving ? (
                   <>
@@ -784,7 +785,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
               {msg.role === 'model' && (
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-[9px] mr-2 mt-1 shrink-0 font-black text-emerald-700 border border-emerald-200 shadow-sm">이음</div>
               )}
-              <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed ${
+              {/* [수정] 채팅 말풍선 글씨 크기 축소 text-[14px] -> text-[13px] */}
+              <div className={`max-w-[85%] px-3 py-2.5 md:px-4 md:py-3 rounded-2xl text-[13px] md:text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user' 
                 ? 'bg-emerald-500 text-white rounded-tr-none' 
                 : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'
@@ -806,6 +808,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
         <div className="p-3 md:p-4 bg-white border-t border-slate-100 shrink-0 relative pb-safe">
           <div className="flex gap-2">
+            {/* [수정] 입력창 및 버튼 글씨 크기 축소 text-sm -> text-[13px] */}
             <input 
               type="text" 
               value={input}
@@ -813,7 +816,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
               placeholder={isTyping ? "입력 중..." : "내용 입력"}
               disabled={isTyping}
-              className={`flex-1 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-4 text-sm outline-none transition-all shadow-inner 
+              className={`flex-1 rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-4 text-[13px] md:text-sm outline-none transition-all shadow-inner 
                 ${isTyping 
                   ? 'bg-slate-50 border border-slate-100 opacity-70 placeholder:text-slate-400' 
                   : 'bg-white border-2 border-emerald-500 ring-2 ring-emerald-500/10 placeholder:text-emerald-600 placeholder:font-bold'
@@ -823,7 +826,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             <button 
               onClick={() => handleSend()}
               disabled={!input.trim() || isTyping}
-              className="bg-slate-900 text-white px-5 md:px-6 rounded-xl md:rounded-2xl font-bold text-sm hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-30 shadow-lg whitespace-nowrap"
+              className="bg-slate-900 text-white px-4 md:px-6 rounded-xl md:rounded-2xl font-bold text-[13px] md:text-sm hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-30 shadow-lg whitespace-nowrap"
             >
               전송
             </button>
