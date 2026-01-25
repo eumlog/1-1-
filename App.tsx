@@ -117,7 +117,8 @@ function App() {
   const isAdminUser = ['테스트', '관리자', 'admin'].includes(loginInfo.name.trim());
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-[Pretendard] selection:bg-emerald-100 selection:text-emerald-900 flex items-center justify-center">
+    // [수정] 모바일 키보드 대응: min-h-screen 대신 min-h-[100dvh] 사용, flex-col 및 justify-center 사용하되 overflow-y-auto 허용
+    <div className="min-h-[100dvh] bg-[#f8fafc] font-[Pretendard] selection:bg-emerald-100 selection:text-emerald-900 flex flex-col justify-center overflow-y-auto">
       {showChatbot && currentUserData && (
         <AIChatbot 
           userData={currentUserData} 
@@ -128,14 +129,14 @@ function App() {
         />
       )}
 
-      <div className="w-full max-w-4xl px-4 md:px-6 py-6 md:py-12">
+      <div className="w-full max-w-4xl px-4 md:px-6 py-6 md:py-12 mx-auto">
         <header className="text-center mb-8 md:mb-16 animate-in fade-in slide-in-from-top-4 duration-1000">
           <div className="inline-block bg-emerald-100 text-emerald-700 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-[11px] font-black mb-3 md:mb-4 tracking-widest uppercase shadow-sm border border-emerald-200/50">Eum-Log Manager AI</div>
           <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight mb-2 md:mb-4 leading-tight">이음로그 맞춤 상담</h1>
           <p className="text-slate-500 font-medium text-xs md:text-base px-4 break-keep">전담 매니저가 회원님의 프로필을 분석하여 1:1 상담을 시작합니다.</p>
         </header>
 
-        <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 pb-10 md:pb-0">
           <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 shadow-xl md:shadow-2xl shadow-emerald-200/20 border border-emerald-50/50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1.5 md:h-2 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
             
@@ -192,7 +193,7 @@ function App() {
           </div>
         </div>
 
-        <footer className="mt-8 md:mt-12 text-center">
+        <footer className="mt-8 md:mt-12 text-center pb-6">
           <p className="text-[9px] md:text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em]">Eum-Log Premium Matching Service v2.0</p>
         </footer>
       </div>

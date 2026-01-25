@@ -15,6 +15,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   
+  // [수정] 모바일 키보드 대응을 위한 동적 높이 상태
+  const [viewportHeight, setViewportHeight] = useState('100dvh');
+
   // [수정] API 키 초기화: 로컬 스토리지 확인 -> Props 확인 -> 빈 값
   const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
     const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
@@ -24,6 +27,33 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // [핵심] 모바일 Visual Viewport 감지 및 높이 조정
+  useEffect(() => {
+    const handleResize = () => {
+      // visualViewport가 지원되는 브라우저(대부분의 모바일)에서는 키보드 제외 영역 높이로 설정
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+        // 키보드가 올라올 때 스크롤을 하단으로 이동
+        if (scrollRef.current) {
+          setTimeout(() => {
+            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+          }, 100);
+        }
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      handleResize(); // 초기값 설정
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
 
   // [핵심 수정] API 키 동기화 로직 개선
   useEffect(() => {
@@ -701,9 +731,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   return (
-    // [수정] 모바일 Full Screen Layout 적용 (h-[100dvh] for keyboard resize support)
+    // [수정] 모바일 Full Screen Layout: Viewport Height를 동적으로 style에 적용
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center md:p-4">
-      <div className="bg-white w-full h-[100dvh] md:h-[92vh] md:max-w-md md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20">
+      <div 
+        style={{ height: viewportHeight }} 
+        className="bg-white w-full md:h-[92vh] md:max-w-md md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20"
+      >
         <div className="bg-emerald-600 p-4 md:p-5 text-white flex justify-between items-center shrink-0 shadow-lg z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/10">👩‍💼</div>
