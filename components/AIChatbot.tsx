@@ -18,27 +18,24 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   // [수정] 모바일 키보드 대응을 위한 동적 높이 상태
   const [viewportHeight, setViewportHeight] = useState('100dvh');
 
-  // [수정] API 키 초기화: 로컬 스토리지 확인 -> Props 확인 -> 빈 값
+  // [수정] API 키 초기화
   const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
     const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
-    // 저장된 키가 유효(길이 10 이상)하면 우선 사용, 아니면 Props 사용
     return (saved && saved.length > 10) ? saved : (apiKey || '');
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  // [추가] 초기화 시 진행 중인 작업을 중단하기 위한 Ref
+  // [추가] 초기화 및 중단 제어용 Refs
   const abortRef = useRef(false);
   const resetTimeoutRef = useRef<any>(null);
 
-  // [핵심] 모바일 Visual Viewport 감지 및 높이 조정
+  // [핵심] 모바일 Visual Viewport 감지
   useEffect(() => {
     const handleResize = () => {
-      // visualViewport가 지원되는 브라우저(대부분의 모바일)에서는 키보드 제외 영역 높이로 설정
       if (window.visualViewport) {
         setViewportHeight(`${window.visualViewport.height}px`);
-        // 키보드가 올라올 때 스크롤을 하단으로 이동
         if (scrollRef.current) {
           setTimeout(() => {
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -49,7 +46,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleResize);
-      handleResize(); // 초기값 설정
+      handleResize();
     }
 
     return () => {
@@ -59,15 +56,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     };
   }, []);
 
-  // [핵심 수정] API 키 동기화 로직 개선
+  // API 키 동기화
   useEffect(() => {
-    // 1. 서버(Props)에서 유효한 키가 넘어왔다면 -> 무조건 신뢰하고 저장소 업데이트
     if (apiKey && apiKey.trim().length > 10) {
         setCurrentApiKey(apiKey);
         localStorage.setItem('GEMINI_LOCAL_API_KEY', apiKey);
-    } 
-    // 2. 서버 키가 없다면 -> 로컬 스토리지에 저장된 키가 있는지 재확인 (새로고침/재접속 대비)
-    else {
+    } else {
         const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
         if (saved && saved.trim().length > 10) {
             setCurrentApiKey(saved);
@@ -75,12 +69,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   }, [apiKey]);
 
-  // [핵심] 안전한 문자열 변환 함수
   const safeStr = (val: any): string => {
     if (val === undefined || val === null) return '';
     return String(val).trim();
   };
 
+  // [중요] 스프레드시트 헤더 매핑 (App.tsx의 MOCK_DATA와 정확히 일치해야 함)
   const HEADERS = {
     NAME: '이름(*)',
     BIRTH: '생년월일(*)',
@@ -91,7 +85,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     EDU: '선호 학력(*)',
     RELIGION: '종교(*)', 
     PRIORITY: '이상형 조건 순위(*)',
-    CONDITIONS_LIST: '보장 조건 선택 (중요)(*)' // [추가] 조건 변경 시 업데이트할 헤더
+    CONDITIONS_LIST: '보장 조건 선택 (중요)(*)' // [핵심] 조건 목록 업데이트를 위한 헤더
   };
 
   const name = safeStr(userData?.[HEADERS.NAME] || userData?.name || '회원');
@@ -108,11 +102,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const priorityWeights = safeStr(userData?.[HEADERS.PRIORITY]);
 
   const rawConditions = safeStr(userData?.[HEADERS.CONDITIONS_LIST]);
+  // [수정] 콤마(,)도 구분자로 인식하도록 정규식 수정 (/[|/,]/)
   const selectedConditions = rawConditions 
-    ? rawConditions.split(/[|/]/).map(s => s.trim()).filter(Boolean)
+    ? rawConditions.split(/[|/,]/).map(s => s.trim()).filter(Boolean)
     : [];
   
   const conditionStr = selectedConditions.length > 0 ? selectedConditions.join(', ') : '없음';
+  
+  // 조건이 3개 이상이면 프리미엄으로 간주
   const isPremiumUser = selectedConditions.length >= 3;
   const planName = isPremiumUser ? '프리미엄' : '베이직';
 
@@ -388,7 +385,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const steps = [];
 
-  // [추가] 프리미엄 회원을 위한 플랜 확인 단계
+  // [중요] 프리미엄 회원을 위한 플랜 확인 단계
   if (isPremiumUser) {
     steps.push({
         title: '플랜 확인 (프리미엄 대상)',
@@ -488,7 +485,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
     [핵심 규칙 2: 플랜 및 조건 변경 (프리미엄 -> 베이직)]
     - 만약 사용자가 상담 초반에 **베이직 플랜으로 변경**을 요청하여 보장 조건을 2가지로 줄였다면, 이후 상담부터는 **그 2가지 조건만 '보장 조건'으로 취급**해야 합니다.
-    - **중요**: 상담이 끝나고 JSON을 출력할 때, \`updates\` 항목에 \`"${HEADERS.CONDITIONS_LIST}"\` 키를 사용하여 **사용자가 최종 선택한 2가지 조건 목록(예: "나이, 키")**을 반드시 포함해야 합니다. 그래야 엑셀에 반영됩니다.
+    - **[매우 중요]**: 상담이 끝나고 JSON을 출력할 때, \`updates\` 항목에 반드시 \`"${HEADERS.CONDITIONS_LIST}"\` 키를 포함하고, 값으로 **사용자가 최종 선택한 2가지 조건 목록(예: "나이, 키")**을 넣어야 합니다. 그래야 엑셀 시트에 변경 사항이 저장됩니다.
 
     [핵심 규칙 3: 말풍선 분리 (모바일 가독성 최우선)]
     - **긴 답변은 무조건 자르세요.** 모바일 화면에서 5줄 이상 넘어가지 않도록, **한 말풍선당 1~2문장**으로 짧게 끊어서 \`\\n\\n\`으로 구분하세요.

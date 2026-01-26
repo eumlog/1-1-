@@ -216,7 +216,7 @@ export const generateScript = (person: Person): string => {
   script += `보내주신 프로필과 이상형 조건 꼼꼼하게 확인했습니다.\n\n`;
 
   if (isPremium) {
-    script += `선택하신 조건이 5가지 이상이라 프리미엄(5개 보장) 기준에 해당됩니다 😊\n`;
+    script += `선택하신 조건이 3가지 이상이라 프리미엄(3개 이상 보장) 기준에 해당됩니다 😊\n`;
     script += `이용료가 조금 더 높은 플랜인데, 이 기준으로 진행 괜찮으실까요?\n\n`;
     script += `(혹시 베이직으로 진행 원하시면 조건을 2개로 줄여드릴 수도 있습니다!)\n`;
   } else {
