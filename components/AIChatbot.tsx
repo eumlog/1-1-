@@ -27,6 +27,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // [추가] 초기화 시 진행 중인 작업을 중단하기 위한 Ref
+  const abortRef = useRef(false);
+  const resetTimeoutRef = useRef<any>(null);
 
   // [핵심] 모바일 Visual Viewport 감지 및 높이 조정
   useEffect(() => {
@@ -86,7 +90,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     INCOME: '상대방의 연봉(소득) 기준이 있다면(*)',
     EDU: '선호 학력(*)',
     RELIGION: '종교(*)', 
-    PRIORITY: '이상형 조건 순위(*)'
+    PRIORITY: '이상형 조건 순위(*)',
+    CONDITIONS_LIST: '보장 조건 선택 (중요)(*)' // [추가] 조건 변경 시 업데이트할 헤더
   };
 
   const name = safeStr(userData?.[HEADERS.NAME] || userData?.name || '회원');
@@ -102,13 +107,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const prefEdu = safeStr(userData?.[HEADERS.EDU]);
   const priorityWeights = safeStr(userData?.[HEADERS.PRIORITY]);
 
-  const rawConditions = safeStr(userData?.['보장 조건 선택 (중요)(*)']);
+  const rawConditions = safeStr(userData?.[HEADERS.CONDITIONS_LIST]);
   const selectedConditions = rawConditions 
     ? rawConditions.split(/[|/]/).map(s => s.trim()).filter(Boolean)
     : [];
   
   const conditionStr = selectedConditions.length > 0 ? selectedConditions.join(', ') : '없음';
-  const planName = selectedConditions.length >= 3 ? '프리미엄' : '베이직';
+  const isPremiumUser = selectedConditions.length >= 3;
+  const planName = isPremiumUser ? '프리미엄' : '베이직';
 
   const isSelected = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
   const hasOption = (keyword: string) => selectedConditions.some(cond => cond.includes(keyword));
@@ -219,9 +225,20 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       if (isMaxLimit(prefHeight)) {
          heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 원하시는 아담한 스타일이나 해당 키 범위의 분들로 잘 찾아보겠습니다!`;
          heightReaction = REACTION_EASY;
-      } else if (hNum >= 161) {
-         heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 혹시 비율이 좋다면 158cm 등 150대 후반 분들도 괜찮으실까요? 조율이 가능한지 여쭤봅니다!`;
-         heightReaction = REACTION_CONDITIONAL;
+      } else if (hNum > 0) {
+         if (hNum >= 160) {
+            const lowerH = hNum - 2;
+            let suggestion = `${lowerH}cm 정도`;
+            if (hNum === 160) {
+                suggestion = `158cm 등 150대 후반`;
+            }
+            heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 혹시 비율이 좋다면 ${suggestion} 분들도 괜찮으실까요? 조율이 가능한지 여쭤봅니다!`;
+            heightReaction = REACTION_CONDITIONAL;
+         } else {
+            // 159, 158 등 160 미만(150대 후반 등)은 그대로 반영
+            heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 원하시는 키 범위의 분들로 잘 찾아보겠습니다!`;
+            heightReaction = REACTION_EASY;
+         }
       } else {
          heightGuide = `키 관련해서 ${prefHeight}으로 ${priorityText}, 다른 조건이 정말 괜찮다면 조금 유연하게 봐주실 수 있을까요?`;
          heightReaction = REACTION_CONDITIONAL;
@@ -363,13 +380,25 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     jobGuide = `직업 조건으로 자영업/사업가 분들도 괜찮다고 해주셔서, 폭넓게 소개해드리겠습니다!`;
     jobReaction = REACTION_EASY;
   } else if (hasOption('직장인')) {
-    jobGuide = `직업 조건으로 '직장인'을 선택해주셨는데, 혹시 안정적인 자영업(사업가) 분들도 괜찮으실까요?`;
+    jobGuide = `직업 조건으로 '직장인'을 선택해주셨네요. 혹시 안정적인 자영업(사업가) 분들도 괜찮으실까요?`;
     jobReaction = REACTION_CONDITIONAL;
   }
 
   const STORAGE_KEY = `eumlog_chat_${name}_${birthYear}`;
 
   const steps = [];
+
+  // [추가] 프리미엄 회원을 위한 플랜 확인 단계
+  if (isPremiumUser) {
+    steps.push({
+        title: '플랜 확인 (프리미엄 대상)',
+        guide: `- (첫 인사 후 사용자 반응 확인)
+        - 만약 사용자가 "괜찮아요", "네 진행할게요" 등 긍정하면: "네, 감사합니다! 프리미엄 플랜으로 꼼꼼하게 매칭 진행해드리겠습니다." 하고 다음 단계로 넘어감.
+        - 만약 사용자가 "비싸요", "베이직으로 할게요", "부담돼요" 등 부정하면: "아 그러시군요! 베이직 플랜은 보장 조건이 2가지입니다. 현재 선택하신 [${conditionStr}] 중에서 가장 중요하게 생각하는 **2가지 조건**을 말씀해 주시면, 해당 조건으로 변경하여 베이직 플랜으로 상담 도와드릴게요!" 라고 질문.
+        - 이후 사용자가 2가지 조건을 말하면: "네, 알겠습니다. 말씀하신 [조건A, 조건B] 두 가지 조건으로 확실하게 맞춰서 베이직 플랜으로 진행하겠습니다." 라고 확답 후 다음 단계 진행.
+        `
+    });
+  }
   
   steps.push({
     title: '나이 조율',
@@ -415,7 +444,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   steps.push({
     title: '마무리',
-    guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [${conditionStr}] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n
+    guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [최종 확정된 보장 조건들] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n
     - **[중요] 데이터 저장**: 상담 종료 시, 변경되거나 확정된 조건들을 **아래 지정된 '시트 헤더명'을 Key로 사용하여** JSON 형식으로 출력하세요.\n
     - JSON 예시:\n
     \`\`\`json
@@ -423,9 +452,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       "updates": {
         "${HEADERS.AGE}": "1990년생 이상 ~ 1995년생 이하",
         "${HEADERS.HEIGHT}": "165cm 이상",
-        "${HEADERS.SMOKING}": "무관"
+        "${HEADERS.SMOKING}": "무관",
+        "${HEADERS.CONDITIONS_LIST}": "나이, 키" // 베이직으로 변경된 경우 필수 포함
       },
-      "memo": "연봉은 3천 초반도 괜찮다고 하심."
+      "memo": "연봉은 3천 초반도 괜찮다고 하심. 베이직으로 변경함."
     }
     \`\`\`
     - 변경되지 않은 조건은 updates에 포함하지 마세요.`
@@ -437,17 +467,17 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     당신은 이음로그의 상담 매니저입니다. 아래 규칙을 절대적으로 지키며 상담을 진행하세요.
 
     [핵심 정보]
-    - 회원이 선택한 보장 조건 목록: [${conditionStr}]
+    - 회원이 초기에 선택한 보장 조건 목록: [${conditionStr}]
     - 보장 조건에 포함된 항목은 확실하게 매칭해 주어야 하며, 포함되지 않은 항목은 가점 매칭(비보장)입니다.
     - 선호 학력(Z열 데이터): ${prefEdu} (이 값을 기준으로 질문을 생성했습니다.)
 
     [핵심 규칙 1: 답변에 대한 반응 (매우 중요)]
-    사용자의 답변을 듣고 나서, 현재 다루고 있는 주제(예: 나이, 키, 흡연, 연봉 등)가 '보장 조건'인지 확인 후 아래와 같이 반응하세요.
+    사용자의 답변을 듣고 나서, 현재 다루고 있는 주제(예: 나이, 키, 흡연, 연봉 등)가 '현재 유효한 보장 조건'인지 확인 후 아래와 같이 반응하세요.
 
     CASE A: 조건 조율/변경 (사용자가 "3천 이상도 괜찮아요", "상관없어요", "전문대도 돼요" 등 조건을 완화하거나 변경할 때)
     - 반응: "네, 확인했습니다! 말씀하신 대로 [변경된 내용]으로 기준을 수정하여 매칭 진행해 드리겠습니다." (확실하게 수용 의사 표시)
 
-    CASE B: 현재 주제가 '보장 조건'([${conditionStr}])에 포함되는 경우
+    CASE B: 현재 주제가 '보장 조건'에 포함되는 경우
     - 반응: "네, 말씀하신 [주제] 조건은 확실하게 보장해서 매칭해 드릴게요!" 또는 "확인했습니다. 이 부분은 꼭 맞춰서 진행하겠습니다."
 
     CASE C: 현재 주제가 '보장 조건'에 포함되지 않는 경우 (비보장)
@@ -456,11 +486,15 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       옵션 2: "넵! 선호하시는 대로 가점은 드리지만, 보장 조건은 아니라서 100% 일치하지 않을 수도 있다는 점 참고해 주세요."
       옵션 3: "알겠습니다. 최대한 반영해 보겠지만, 필수 조건 외에는 매칭 상황에 따라 조금 유연하게 진행될 수 있어요!"
 
-    [핵심 규칙 2: 말풍선 분리 (모바일 가독성 최우선)]
+    [핵심 규칙 2: 플랜 및 조건 변경 (프리미엄 -> 베이직)]
+    - 만약 사용자가 상담 초반에 **베이직 플랜으로 변경**을 요청하여 보장 조건을 2가지로 줄였다면, 이후 상담부터는 **그 2가지 조건만 '보장 조건'으로 취급**해야 합니다.
+    - **중요**: 상담이 끝나고 JSON을 출력할 때, \`updates\` 항목에 \`"${HEADERS.CONDITIONS_LIST}"\` 키를 사용하여 **사용자가 최종 선택한 2가지 조건 목록(예: "나이, 키")**을 반드시 포함해야 합니다. 그래야 엑셀에 반영됩니다.
+
+    [핵심 규칙 3: 말풍선 분리 (모바일 가독성 최우선)]
     - **긴 답변은 무조건 자르세요.** 모바일 화면에서 5줄 이상 넘어가지 않도록, **한 말풍선당 1~2문장**으로 짧게 끊어서 \`\\n\\n\`으로 구분하세요.
     - 특히 **[이전 답변에 대한 반응]**과 **[다음 주제로 넘어가는 멘트]**가 합쳐지면 내용이 길어지므로, 이 둘은 **무조건** \`\\n\\n\`으로 분리해서 보내야 합니다.
 
-    [핵심 규칙 3: 데이터 전송용 출력 (가장 중요)]
+    [핵심 규칙 4: 데이터 전송용 출력 (가장 중요)]
     - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
     - 사용할 헤더명 목록:
       - 나이 -> "${HEADERS.AGE}"
@@ -469,6 +503,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       - 연봉 -> "${HEADERS.INCOME}"
       - 학력 -> "${HEADERS.EDU}"
       - 종교 -> "${HEADERS.RELIGION}"
+      - 보장 조건 목록 -> "${HEADERS.CONDITIONS_LIST}" (조건 목록이 변경되었을 때 필수)
     
     - JSON은 사용자에게 보이지 않지만 시스템이 읽어서 **시트의 해당 칸을 자동으로 수정**합니다. 정확한 키를 사용하세요.
 
@@ -563,6 +598,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const appendMessages = async (texts: string[]) => {
     for (const text of texts) {
+      if (abortRef.current) return; // 중단 요청 시 종료
       if (!text || !text.trim()) continue;
 
       if (text.includes('```json')) {
@@ -572,28 +608,50 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       setIsTyping(true);
       const delay = Math.min(Math.max(text.length * 35, 700), 1500);
       await new Promise(resolve => setTimeout(resolve, delay));
+      if (abortRef.current) return; // 딜레이 후 다시 확인
+
       setMessages(prev => [...prev, { role: 'model', text: text.replace(/\*\*/g, '').trim() }]);
       setIsTyping(false);
     }
   };
 
   const startIntro = async () => {
-    const introParts = [
-      `안녕하세요 ${name}님! 이음로그 매니저입니다.\n보내주신 프로필과 이상형 조건 꼼꼼하게 확인했습니다.`,
-      `현재 [${conditionStr}] 조건을 확실히 보장해드리는 ${planName} 플랜으로 신청해 주셨네요! 😊`,
-      `매칭 시작 전, 몇 가지 세부 사항을 조율하고자 합니다. 잠시 대화 가능하실까요?`
+    let introParts = [
+      `안녕하세요 ${name}님! 이음로그 매니저입니다.\n보내주신 프로필과 이상형 조건 꼼꼼하게 확인했습니다.`
     ];
+
+    if (isPremiumUser) {
+        introParts.push(
+            `선택하신 조건이 ${selectedConditions.length}가지 이상이라 프리미엄(다수 보장) 기준에 해당됩니다 😊\n이용료가 조금 더 높은 플랜인데, 이 기준으로 진행 괜찮으실까요?`,
+            `(혹시 베이직으로 진행 원하시면 조건을 2개로 줄여드릴 수도 있습니다!)`
+        );
+    } else {
+        introParts.push(
+            `현재 [${conditionStr}] 조건을 확실히 보장해드리는 ${planName} 플랜으로 신청해 주셨네요! 😊`,
+            `매칭 시작 전, 몇 가지 세부 사항을 조율하고자 합니다. 잠시 대화 가능하실까요?`
+        );
+    }
+    
     await appendMessages(introParts);
   };
 
   const handleReset = () => {
     if (window.confirm("현재 대화 내용을 모두 삭제하고 처음부터 다시 상담을 시작하시겠습니까?")) {
+      // 1. 현재 진행 중인 모든 작업(타이핑 등) 중단
+      abortRef.current = true;
+      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+      
+      // 2. 상태 즉시 클리어
       localStorage.removeItem(STORAGE_KEY);
       setMessages([]);
       setIsTyping(false);
-      setTimeout(() => {
+      setInput(''); // 입력창도 초기화
+
+      // 3. 약간의 딜레이 후 재시작 (abort가 확실히 적용되도록)
+      resetTimeoutRef.current = setTimeout(() => {
+          abortRef.current = false; // 중단 플래그 해제
           startIntro();
-      }, 100);
+      }, 300);
     }
   };
   
@@ -617,6 +675,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const handleSend = async (manualInput?: string) => {
     const userMsg = manualInput || input;
     if (!userMsg.trim() || isTyping) return;
+
+    // 전송 시작 시 abort flag 해제 (혹시 모를 잔여 상태 방지)
+    abortRef.current = false;
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
@@ -667,6 +728,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       let success = false;
 
       for (let attempt = 0; attempt < 3; attempt++) {
+        // 중단 요청 확인
+        if (abortRef.current) return;
+        
         try {
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -703,9 +767,15 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       }
 
       const parts = aiText.split('\n\n').filter(p => p.trim());
+      
+      // API 응답 후에도 중단 여부 확인
+      if (abortRef.current) return;
+
       await appendMessages(parts);
 
     } catch (error: any) {
+      if (abortRef.current) return; // 에러 처리 전 중단 확인
+      
       console.error("Gemini API Error:", error);
       
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
