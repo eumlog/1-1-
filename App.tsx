@@ -44,6 +44,9 @@ function App() {
     }
   }, []);
 
+  // [추가] 로컬 스토리지 키 가져오기 헬퍼
+  const getLocalApiKey = () => localStorage.getItem('GEMINI_LOCAL_API_KEY') || '';
+
   const handleSecureLogin = async () => {
     if (!loginInfo.name || !loginInfo.pass) {
       alert('성함과 비밀번호를 모두 입력해주세요.');
@@ -51,12 +54,14 @@ function App() {
     }
 
     if ((loginInfo.name === '테스트' || loginInfo.name === '관리자') && loginInfo.pass === '1234') {
-        let finalKey = ENV_API_KEY;
+        // [수정] 환경변수 -> 로컬스토리지 순으로 키 확인
+        let finalKey = ENV_API_KEY || getLocalApiKey();
 
-        if (!finalKey) {
-            const manualKey = prompt("⚠️ 환경변수에서 API 키를 찾을 수 없습니다.\n(Vercel 설정이 아직 적용되지 않았을 수 있습니다.)\n\n테스트를 위해 발급받은 API 키를 직접 입력해주세요:", "");
+        if (!finalKey || finalKey.length < 10) {
+            const manualKey = prompt("⚠️ API 키가 필요합니다.\n(한 번 입력하면 브라우저에 저장됩니다.)\n\nGoogle Gemini API 키를 입력해주세요:", "");
             if (manualKey && manualKey.trim().length > 10) {
                 finalKey = manualKey.trim();
+                localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey); // [저장]
             } else {
                 alert("API 키가 없어 테스트 모드를 실행할 수 없습니다.");
                 return;
@@ -92,14 +97,18 @@ function App() {
       const result = await response.json();
 
       if (result.success && result.data) {
-        // [수정] 배열이면 첫 번째 요소 사용, 아니면 그대로 사용 (Apps Script 응답 구조 대응)
         const userData = Array.isArray(result.data) ? result.data[0] : result.data;
         setCurrentUserData(userData);
         
-        if (result.apiKey) {
-            setServerApiKey(result.apiKey);
-        } else if (ENV_API_KEY) {
-            setServerApiKey(ENV_API_KEY);
+        // [수정] API 키 우선순위: 서버 응답 -> 환경변수 -> 로컬스토리지
+        let keyToUse = result.apiKey || ENV_API_KEY || getLocalApiKey();
+        
+        if (keyToUse) {
+            setServerApiKey(keyToUse);
+            // 만약 로컬에 없거나 갱신되었다면 저장 (옵션)
+            if (keyToUse !== getLocalApiKey()) {
+                localStorage.setItem('GEMINI_LOCAL_API_KEY', keyToUse);
+            }
         }
         
         setShowChatbot(true);
