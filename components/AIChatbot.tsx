@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 interface AIChatbotProps {
   userData: any;
@@ -742,18 +742,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         if (abortRef.current) return;
         
         try {
+            // [수정] 모델을 gemini-3-flash-preview (비공개) -> gemini-2.0-flash-exp (공개 최신)으로 변경
+            // [수정] safetySettings 제거 (버전 간 호환성 이슈로 인한 400 Bad Request 방지)
             const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
+                model: 'gemini-2.0-flash-exp',
                 contents: formattedContents,
                 config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.2,
-                safetySettings: [
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                ]
+                    systemInstruction: systemInstruction,
+                    temperature: 0.2,
                 }
             });
             aiText = response.text || "";
@@ -763,6 +759,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             console.warn(`Attempt ${attempt + 1} failed:`, e);
             lastError = e;
             const errStr = e.toString();
+            // 키 오류(400)나 권한 오류(403)는 즉시 중단
             if (errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
                 throw e;
             }
@@ -809,10 +806,15 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
       const errStr = error.toString();
       
-      // [수정] 프롬프트 호출(alert/prompt) 코드를 완전히 제거했습니다.
-      // 에러가 발생하면 사용자를 귀찮게 하지 않고 단순히 메시지만 띄웁니다.
-      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
-         errorMsg = "⚠ 시스템 설정 오류(API Key)로 인해 답변을 생성할 수 없습니다. 담당 매니저에게 문의해주세요.";
+      // [수정] 구체적인 에러 메시지를 표시하여 문제 파악을 도움
+      if (errStr.includes('API_KEY_INVALID')) {
+          errorMsg = "⚠ API 키가 잘못되었습니다. (400 Bad Request)";
+      } else if (errStr.includes('403')) {
+          errorMsg = "⚠ API 권한 오류입니다. Google Cloud Console에서 'Generative Language API'가 활성화되어 있는지, 또는 키에 'Referrer' 제한이 걸려있지 않은지 확인해주세요. (403 Forbidden)";
+      } else if (errStr.includes('404')) {
+          errorMsg = "⚠ AI 모델을 찾을 수 없습니다. (404 Not Found)";
+      } else if (errStr.includes('400')) {
+          errorMsg = "⚠ 요청 형식이 올바르지 않습니다. (400 Bad Request)";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
