@@ -28,6 +28,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   
   const abortRef = useRef(false);
   const resetTimeoutRef = useRef<any>(null);
+  const introCalled = useRef(false);
+  const introInProgress = useRef(false); // [중복 방지용] 실행 중 여부 체크
 
   useEffect(() => {
     const handleResize = () => {
@@ -403,8 +405,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         title: '플랜 확인 (프리미엄 대상)',
         guide: `- (첫 인사 후 사용자 반응 확인)
         - 만약 사용자가 "괜찮아요", "네 진행할게요" 등 긍정하면: "네, 감사합니다! 프리미엄 플랜으로 꼼꼼하게 매칭 진행해드리겠습니다." 하고 다음 단계로 넘어감.
-        - 만약 사용자가 "비싸요", "베이직으로 할게요", "부담돼요" 등 부정하면: "아 그러시군요! 베이직 플랜은 보장 조건이 2가지입니다. 현재 선택하신 [${conditionStr}] 중에서 가장 중요하게 생각하는 **2가지 조건**을 말씀해 주시면, 해당 조건으로 변경하여 베이직 플랜으로 상담 도와드릴게요!" 라고 질문.
-        - 이후 사용자가 2가지 조건을 말하면: "네, 알겠습니다. 말씀하신 [조건A, 조건B] 두 가지 조건으로 확실하게 맞춰서 베이직 플랜으로 진행하겠습니다." 라고 확답 후 다음 단계 진행.
+        - 만약 사용자가 "비싸요", "베이직으로 할게요", "부담돼요" 등 부정하면: "아 그러시군요! 베이직 플랜으로 변경을 원하시면 담당 매니저에게 카톡으로 문의주시면 빠르게 도와드리겠습니다!" 라고 안내.
+        - 이후 "그럼 우선은 프리미엄 기준으로 상담을 계속 진행해 드릴까요?" 라고 물어보고 답변 받기.
         `
     });
   }
@@ -539,14 +541,19 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   useEffect(() => {
     if (!currentApiKey) return; 
 
+    // 이미 초기화되었거나 대화 내역이 있다면 중복 실행 방지
+    if (introCalled.current) return;
+
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         setMessages(JSON.parse(saved));
+        introCalled.current = true;
       } catch (e) {
         console.error("Chat history parsing failed");
       }
     } else if (name) {
+      introCalled.current = true;
       startIntro();
     }
   }, [name, currentApiKey]); 
@@ -622,6 +629,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   const startIntro = async () => {
+    // [중복 방지 2차 체크] 이미 실행 중이거나 메시지가 있으면 중단
+    if (introInProgress.current || messages.length > 0) return;
+    introInProgress.current = true;
+
     let introParts = [
       `안녕하세요 ${name}님! 이음로그 매니저입니다.\n보내주신 프로필과 이상형 조건 꼼꼼하게 확인했습니다.`
     ];
@@ -629,7 +640,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     if (isPremiumUser) {
         introParts.push(
             `선택하신 조건이 ${selectedConditions.length}가지 이상이라 프리미엄(다수 보장) 기준에 해당됩니다 😊\n이용료가 조금 더 높은 플랜인데, 이 기준으로 진행 괜찮으실까요?`,
-            `(혹시 베이직으로 진행 원하시면 조건을 2개로 줄여드릴 수도 있습니다!)`
+            `(혹시 베이직으로 진행 원하시면 담당 매니저에게 카톡으로 문의 부탁드립니다!)`
         );
     } else {
         introParts.push(
@@ -650,6 +661,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       setMessages([]);
       setIsTyping(false);
       setInput(''); 
+      introCalled.current = true; // reset 후 수동 호출하므로 flag 유지
+      introInProgress.current = false; // reset이므로 실행 가능 상태로
 
       resetTimeoutRef.current = setTimeout(() => {
           abortRef.current = false;
