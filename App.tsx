@@ -183,10 +183,13 @@ function App() {
                 />
               </div>
               <div className="group space-y-1.5 md:space-y-2">
-                <label className="text-[10px] md:text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Password / 비밀번호</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] md:text-[11px] font-black text-slate-400 ml-1 uppercase tracking-wider group-focus-within:text-emerald-500 transition-colors">Password / 비밀번호</label>
+                  <span className="text-[10px] text-emerald-600 font-bold tracking-tight">* 2차 설문 시 설정한 비밀번호</span>
+                </div>
                 <input 
                   type="password" 
-                  placeholder="비밀번호를 입력하세요"
+                  placeholder="2차 설문 시 입력하신 비밀번호"
                   value={loginInfo.pass}
                   onChange={e => setLoginInfo({...loginInfo, pass: e.target.value})}
                   onKeyPress={e => e.key === 'Enter' && handleSecureLogin()}
