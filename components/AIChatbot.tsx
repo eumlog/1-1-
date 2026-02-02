@@ -464,13 +464,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       "updates": {
         "${HEADERS.AGE}": "1990년생 이상 ~ 1995년생 이하",
         "${HEADERS.HEIGHT}": "166cm 이하",
-        "${HEADERS.SMOKING}": "무관",
-        "${HEADERS.INCOME}": "4천 이상",
+        "${HEADERS.SMOKING}": "흡연자도 가능",
+        "${HEADERS.INCOME}": "4천만 원 이상",
         "${HEADERS.RELIGION}": "무교만",
         "${HEADERS.JOB}": "자영업 포함",
         "${HEADERS.CONDITIONS_LIST}": "나이, 키"
       },
-      "changeSummary": "키 165cm이하 -> 166cm이하 / 흡연 비흡연 -> 흡연 가능 / 연봉 5천 -> 4천",
+      "changeSummary": "키 165cm이하 -> 166cm이하 / 흡연 비흡연 -> 흡연 가능 / 연봉 5천만 원 이상 -> 4천만 원 이상",
       "memo": "성격이 급하신 편."
     }
     \`\`\`
@@ -510,16 +510,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
     - 만약 사용자가 조건을 변경했다면(예: 비흡연 -> 흡연 가능, 키 180 -> 175, 자녀 계획 변경 등), \`updates\` 객체에 반드시 해당 헤더명과 변경된 값을 포함하세요.
     - **updates에 포함된 내용만 시트에 반영됩니다.** 사용자가 "괜찮다", "가능하다"고 하여 조건이 완화된 경우 반드시 updates에 포함하세요.
-    - 사용할 헤더명 목록:
-      - 나이 -> "${HEADERS.AGE}"
-      - 키 -> "${HEADERS.HEIGHT}"
-      - 흡연 -> "${HEADERS.SMOKING}"
-      - 연봉 -> "${HEADERS.INCOME}"
-      - 학력 -> "${HEADERS.EDU}"
-      - 종교 -> "${HEADERS.RELIGION}"
-      - 직업 -> "${HEADERS.JOB}"
-      - 자녀 계획 -> "${HEADERS.CHILDREN}"
-      - 보장 조건 목록 -> "${HEADERS.CONDITIONS_LIST}" (조건 목록이 변경되었을 때 필수)
+    
+    - **[중요] 값의 형식 통일**: 변경된 값은 반드시 아래 지정된 형식 중 하나로만 저장하세요. (시트 데이터 일관성 유지)
+      1. **흡연**: "비흡연자만" 또는 "흡연자도 가능" (사용자가 '상관없다', '괜찮다'고 하면 무조건 "흡연자도 가능"으로 저장)
+      2. **학력**: "고졸 이상", "전문대졸 이상", "대졸 이상" (뒤에 '가능' 등을 붙이지 말고 딱 이 포맷 유지)
+      3. **연봉**: "3천만 원 이상", "5천만 원 이상", "7천만 원 이상", "1억 원 이상" 또는 "무관" (단위 '천만 원' 필수)
+      4. **키**: "160cm 이상", "175cm 이상", "165cm 이하" 등 (cm 뒤에 띄어쓰기 후 이상/이하)
+      5. **나이**: "1990~1995" 또는 "1995년생 이하" 등 (년도 범위나 특정 기준)
+      6. **자녀 계획**: "생각 있음 (상의 가능)", "생각 없음" 등
     
     - JSON은 사용자에게 보이지 않지만 시스템이 읽어서 **시트의 해당 칸을 자동으로 수정**합니다. 정확한 키를 사용하세요.
 
