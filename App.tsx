@@ -53,73 +53,78 @@ function App() {
       return;
     }
 
+    let userData = null;
+    let fetchedKey = '';
+
+    // 1. 테스트/관리자 모드 확인
     if ((loginInfo.name === '테스트' || loginInfo.name === '관리자') && loginInfo.pass === '1234') {
-        // [수정] 환경변수 -> 로컬스토리지 순으로 키 확인
-        let finalKey = ENV_API_KEY || getLocalApiKey();
-
-        if (!finalKey || finalKey.length < 10) {
-            const manualKey = prompt("⚠️ API 키가 필요합니다.\n(한 번 입력하면 브라우저에 저장됩니다.)\n\nGoogle Gemini API 키를 입력해주세요:", "");
-            if (manualKey && manualKey.trim().length > 10) {
-                finalKey = manualKey.trim();
-                localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey); // [저장]
-            } else {
-                alert("API 키가 없어 테스트 모드를 실행할 수 없습니다.");
-                return;
-            }
-        }
-
         alert('🔧 [테스트 모드]로 로그인합니다.');
-        setCurrentUserData(MOCK_DATA);
-        setServerApiKey(finalKey);
-        setShowChatbot(true);
-        return;
+        userData = MOCK_DATA;
+    } else {
+        // 2. 일반 서버 로그인
+        setIsLoading(true);
+        try {
+          const urlWithParams = new URL(APPS_SCRIPT_URL);
+          urlWithParams.searchParams.set('mode', 'consultation');
+          urlWithParams.searchParams.set('name', loginInfo.name.trim());
+          urlWithParams.searchParams.set('pass', loginInfo.pass.trim());
+          
+          const response = await fetch(urlWithParams.toString(), {
+            method: 'GET',
+            mode: 'cors',
+          });
+          
+          if (!response.ok) throw new Error('서버 네트워크 상태를 확인해주세요.');
+          
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+             throw new Error("서버에서 올바르지 않은 응답(HTML)이 왔습니다.");
+          }
+
+          const result = await response.json();
+
+          if (result.success && result.data) {
+            userData = Array.isArray(result.data) ? result.data[0] : result.data;
+            fetchedKey = result.apiKey || '';
+          } else {
+            alert(result.error || '성함 또는 비밀번호가 일치하지 않습니다.');
+            setIsLoading(false);
+            return;
+          }
+        } catch (error: any) {
+          console.error('Login Error:', error);
+          alert(`서버 연결 실패: ${error.message}\n\n이름: "테스트", 비번: "1234"를 입력하면 테스트 모드로 진입할 수 있습니다.`);
+          setIsLoading(false);
+          return;
+        } finally {
+          setIsLoading(false);
+        }
     }
 
-    setIsLoading(true);
-    try {
-      const urlWithParams = new URL(APPS_SCRIPT_URL);
-      urlWithParams.searchParams.set('mode', 'consultation');
-      urlWithParams.searchParams.set('name', loginInfo.name.trim());
-      urlWithParams.searchParams.set('pass', loginInfo.pass.trim());
-      
-      const response = await fetch(urlWithParams.toString(), {
-        method: 'GET',
-        mode: 'cors',
-      });
-      
-      if (!response.ok) throw new Error('서버 네트워크 상태를 확인해주세요.');
-      
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-         throw new Error("서버에서 올바르지 않은 응답(HTML)이 왔습니다.");
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        const userData = Array.isArray(result.data) ? result.data[0] : result.data;
+    // 3. 로그인 성공 후 처리 (API 키 확인 및 저장)
+    if (userData) {
         setCurrentUserData(userData);
         
-        // [수정] API 키 우선순위: 서버 응답 -> 환경변수 -> 로컬스토리지
-        let keyToUse = result.apiKey || ENV_API_KEY || getLocalApiKey();
+        // 우선순위: 서버에서 받은 키 > 환경변수 > 로컬스토리지
+        let finalKey = fetchedKey || ENV_API_KEY || getLocalApiKey();
         
-        if (keyToUse) {
-            setServerApiKey(keyToUse);
-            // 만약 로컬에 없거나 갱신되었다면 저장 (옵션)
-            if (keyToUse !== getLocalApiKey()) {
-                localStorage.setItem('GEMINI_LOCAL_API_KEY', keyToUse);
+        // [수정] 키가 없으면 사용자에게 요청 (일반/관리자 공통)
+        if (!finalKey || finalKey.length < 10) {
+            const manualKey = prompt("⚠️ 상담 시스템 사용을 위해 Google Gemini API 키가 필요합니다.\n(한 번 입력하면 브라우저에 자동 저장되어 다음번엔 묻지 않습니다.)\n\nAPI Key:", "");
+            if (manualKey && manualKey.trim().length > 10) {
+                finalKey = manualKey.trim();
+                localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey); // 영구 저장
+            }
+        } else {
+            // 유효한 키가 있다면 로컬 스토리지도 동기화 (다음번 로그인을 위해)
+            // 단, 서버에서 빈 값이 오거나 환경변수가 없을 때 로컬키를 날리지 않도록 주의
+            if (finalKey !== getLocalApiKey()) {
+                localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey);
             }
         }
         
+        setServerApiKey(finalKey || '');
         setShowChatbot(true);
-      } else {
-        alert(result.error || '성함 또는 비밀번호가 일치하지 않습니다.');
-      }
-    } catch (error: any) {
-      console.error('Login Error:', error);
-      alert(`서버 연결 실패: ${error.message}\n\n이름: "테스트", 비번: "1234"를 입력하면 테스트 모드로 진입할 수 있습니다.`);
-    } finally {
-      setIsLoading(false);
     }
   };
 
