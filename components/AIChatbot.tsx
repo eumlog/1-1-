@@ -78,7 +78,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     return String(val).trim();
   };
 
-  // [수정] 자녀 계획, 직업 등 추가 헤더 정의 (시트의 헤더명과 일치해야 함)
   const HEADERS = {
     NAME: '이름(*)',
     BIRTH: '생년월일(*)',
@@ -128,7 +127,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
   const REACTION_EASY = "(조건이 까다롭지 않으므로, '비보장 안내' 멘트를 절대 하지 말고 '네 확인했습니다' 정도로 깔끔하게 답변)";
   const REACTION_CONDITIONAL = "(사용자가 제안을 수락하거나 유연한 태도(괜찮다 등)를 보이면 '비보장 안내' 멘트를 절대 하지 말고 '네, 그럼 해당 기준으로 넓혀서 매칭해드리겠습니다'라고 변경 사항을 확정하세요. 반면 까다로운 조건을 고집하면 보장/비보장 여부에 따라 반응하세요.)";
-  // [추가] 키 비보장 시 강제 안내 멘트
   const REACTION_HEIGHT_WARNING = "(중요: 키는 보장 조건이 아니므로, '선호하시니 맞춰보겠지만 필수 조건은 아니라서 상황에 따라 키가 조금 다른 분이 소개될 수도 있다는 점 참고 부탁드립니다'라는 취지의 안내를 반드시 포함하세요)";
 
   let ageGuide = '';
@@ -256,7 +254,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     heightGuide = `키 조건을 선택해주셨는데, 구체적으로 선호하시는 키 기준이 있으실까요?`;
   }
 
-  // [핵심] 키가 보장 조건(CONDITIONS_LIST)에 없으면 비보장 안내 멘트를 강제
   if (!isSelected('키')) {
       heightReaction = REACTION_HEIGHT_WARNING;
   }
@@ -458,21 +455,22 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     title: '마무리',
     guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [최종 확정된 보장 조건들] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n
     - **[중요] 데이터 저장**: 상담 종료 시, 변경되거나 확정된 조건들을 **아래 지정된 '시트 헤더명'을 Key로 사용하여** JSON 형식으로 출력하세요.\n
-    - **[핵심] 변경 내역 요약 (AL열 저장용)**: JSON 안에 \`changeSummary\` 필드를 추가하여, 상담을 통해 **값이 변경되거나 조율된 조건**들을 \`"조건명 기존값 -> 변경값"\` 형식으로 한 줄로 요약해 주세요. 여러 개일 경우 \` / \`로 구분합니다.\n
-      - 예시: "키 180cm이상 -> 178cm이상 / 흡연 비흡연 -> 흡연 가능 / 나이 1998년생 -> 1995년생"\n
+    - **[핵심] 변경 내역 요약 (AL열 저장용)**: JSON 안에 \`changeSummary\` 필드를 추가하여, 상담을 통해 **값이 변경되거나 조율된 조건**들을 \`"조건명 기존값 -> 변경값"\` 형식으로 요약해 주세요. 여러 개일 경우 \` / \`로 구분합니다. **화살표(->)를 사용하여 변경 전후를 명확히 보여주세요.**\n
+      - 예시: "키 180cm이하 -> 178cm이하 / 흡연 비흡연 -> 흡연 가능 / 나이 1998년생 -> 1995년생"\n
       - 변경된 사항이 없으면 "변경 사항 없음"이라고 적으세요.\n
     - JSON 예시:\n
     \`\`\`json
     {
       "updates": {
         "${HEADERS.AGE}": "1990년생 이상 ~ 1995년생 이하",
-        "${HEADERS.HEIGHT}": "165cm 이상",
+        "${HEADERS.HEIGHT}": "166cm 이하",
         "${HEADERS.SMOKING}": "무관",
         "${HEADERS.INCOME}": "4천 이상",
         "${HEADERS.RELIGION}": "무교만",
+        "${HEADERS.JOB}": "자영업 포함",
         "${HEADERS.CONDITIONS_LIST}": "나이, 키"
       },
-      "changeSummary": "키 165cm이상 -> 160cm이상 / 흡연 비흡연 -> 흡연 가능 / 연봉 5천 -> 4천",
+      "changeSummary": "키 165cm이하 -> 166cm이하 / 흡연 비흡연 -> 흡연 가능 / 연봉 5천 -> 4천",
       "memo": "성격이 급하신 편."
     }
     \`\`\`
@@ -511,6 +509,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     [핵심 규칙 3: 데이터 전송용 출력 (가장 중요)]
     - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
     - 만약 사용자가 조건을 변경했다면(예: 비흡연 -> 흡연 가능, 키 180 -> 175, 자녀 계획 변경 등), \`updates\` 객체에 반드시 해당 헤더명과 변경된 값을 포함하세요.
+    - **updates에 포함된 내용만 시트에 반영됩니다.** 사용자가 "괜찮다", "가능하다"고 하여 조건이 완화된 경우 반드시 updates에 포함하세요.
     - 사용할 헤더명 목록:
       - 나이 -> "${HEADERS.AGE}"
       - 키 -> "${HEADERS.HEIGHT}"
@@ -523,6 +522,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       - 보장 조건 목록 -> "${HEADERS.CONDITIONS_LIST}" (조건 목록이 변경되었을 때 필수)
     
     - JSON은 사용자에게 보이지 않지만 시스템이 읽어서 **시트의 해당 칸을 자동으로 수정**합니다. 정확한 키를 사용하세요.
+
+    [핵심 규칙 4: 흐름 복귀 (매우 중요)]
+    - 사용자가 현재 질문과 다른 주제(예: 흡연 질문 중인데 지나간 키 이야기)를 꺼내면, **해당 요청(키 변경)을 처리했다고 답한 후 반드시 '원래 하던 질문(흡연)'을 다시 던지세요.**
+    - 절대 대화를 뚝 끊지 마세요.
+    - 예시: "아, 키 기준을 166cm로 변경 원하시는군요? 네, 바로 수정해 드리겠습니다! \n\n그럼 다시 이어서 여쭤볼게요. 흡연은 비흡연자만 원하시나요?"
 
     [상담 시퀀스 - 순서 엄수]
     각 단계별로 지정된 가이드 문구를 사용하여 질문하되, 문맥에 맞게 자연스럽게 이어가세요.
@@ -552,24 +556,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === 'model' && (lastMsg.text.includes('고생하셨습니다') || lastMsg.text.includes('감사합니다'))) {
-        const jsonMatch = lastMsg.text.match(/```json\s*({[\s\S]*?})\s*```/);
-        let summaryData = null;
-        if (jsonMatch && jsonMatch[1]) {
-            try {
-                summaryData = JSON.parse(jsonMatch[1]);
-            } catch (e) {
-                console.error("JSON parse error", e);
-            }
-        }
-        saveConsultationData(summaryData);
-      }
     }
   }, [messages]);
 
@@ -606,6 +592,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             },
             body: JSON.stringify(payload)
         });
+        
+        // 사용자에게 저장 완료 알림 (화면 표시용)
+        setMessages(prev => [...prev, { role: 'model', text: "✅ 상담 내용과 변경된 조건이 시스템에 안전하게 저장되었습니다." }]);
         
     } catch (e) {
         console.error('Failed to save consultation', e);
@@ -776,11 +765,32 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
           throw lastError;
       }
 
-      const parts = aiText.split('\n\n').filter(p => p.trim());
+      // 1. JSON 추출
+      let finalJsonData = null;
+      const jsonRegex = /```json\s*({[\s\S]*?})\s*```/;
+      const jsonMatch = aiText.match(jsonRegex);
+      
+      if (jsonMatch && jsonMatch[1]) {
+          try {
+              finalJsonData = JSON.parse(jsonMatch[1]);
+          } catch (e) {
+              console.error("JSON Parse Error during send", e);
+          }
+      }
+
+      // 2. 화면 표시용 텍스트 (JSON 제거)
+      const cleanText = aiText.replace(jsonRegex, '').trim();
+      const parts = cleanText.split('\n\n').filter(p => p.trim());
       
       if (abortRef.current) return;
 
+      // 3. 메시지 출력
       await appendMessages(parts);
+
+      // 4. JSON 데이터가 있으면 바로 저장 실행
+      if (finalJsonData) {
+          await saveConsultationData(finalJsonData);
+      }
 
     } catch (error: any) {
       if (abortRef.current) return;
