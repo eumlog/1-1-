@@ -17,9 +17,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   
   const [viewportHeight, setViewportHeight] = useState('100dvh');
 
+  // [중요] 초기화 시 App.tsx에서 내려준 확실한 키(apiKey)를 우선 사용합니다.
   const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
-    const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
-    return (saved && saved.length > 10) ? saved : (apiKey || '');
+    if (apiKey && apiKey.length > 20) return apiKey;
+    return localStorage.getItem('GEMINI_LOCAL_API_KEY') || '';
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -63,15 +64,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   }, [isTyping]);
 
+  // App.tsx에서 prop으로 넘어온 키가 변경되면 즉시 적용
   useEffect(() => {
-    if (apiKey && apiKey.trim().length > 10) {
+    if (apiKey && apiKey.trim().length > 20) {
         setCurrentApiKey(apiKey);
         localStorage.setItem('GEMINI_LOCAL_API_KEY', apiKey);
-    } else {
-        const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
-        if (saved && saved.trim().length > 10) {
-            setCurrentApiKey(saved);
-        }
     }
   }, [apiKey]);
 
@@ -812,17 +809,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
       const errStr = error.toString();
       
-      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('400') || errStr.includes('403')) {
-         const newKey = prompt(`🚨 API 키 오류가 발생했습니다 (${errStr.includes('expired') ? '만료됨' : '유효하지 않음'}).\n\n새로운 API 키를 입력해주시면 즉시 적용되어 계속 상담할 수 있습니다:`, currentApiKey);
-         if (newKey && newKey.trim()) {
-             const k = newKey.trim();
-             localStorage.setItem('GEMINI_LOCAL_API_KEY', k);
-             setCurrentApiKey(k);
-             alert("API 키가 갱신 및 저장되었습니다. 다시 '전송' 버튼을 눌러주세요.");
-             errorMsg = "API 키가 갱신되었습니다. 방금 입력하신 내용을 다시 전송해주세요!";
-         } else {
-             errorMsg = "API 키 오류로 인해 답변을 생성할 수 없습니다. 우측 상단 열쇠 아이콘을 눌러 키를 설정해주세요.";
-         }
+      // [수정] 프롬프트 호출(alert/prompt) 코드를 완전히 제거했습니다.
+      // 에러가 발생하면 사용자를 귀찮게 하지 않고 단순히 메시지만 띄웁니다.
+      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
+         errorMsg = "⚠ 시스템 설정 오류(API Key)로 인해 답변을 생성할 수 없습니다. 담당 매니저에게 문의해주세요.";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
