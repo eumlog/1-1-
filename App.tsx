@@ -105,20 +105,28 @@ function App() {
     if (userData) {
         setCurrentUserData(userData);
         
-        // 우선순위: 서버에서 받은 키 > 환경변수 > 로컬스토리지
-        let finalKey = fetchedKey || ENV_API_KEY || getLocalApiKey();
+        // 키 유효성 검사 헬퍼
+        const isValid = (k: string | undefined | null) => k && typeof k === 'string' && k.trim().length >= 10;
         
-        // [수정] 키가 없으면 사용자에게 요청 (일반/관리자 공통)
-        if (!finalKey || finalKey.length < 10) {
+        const localKey = getLocalApiKey();
+        let finalKey = '';
+
+        // 우선순위: 서버 키 > 환경변수 > 로컬 저장된 키
+        if (isValid(fetchedKey)) finalKey = fetchedKey;
+        else if (isValid(ENV_API_KEY)) finalKey = ENV_API_KEY;
+        else if (isValid(localKey)) finalKey = localKey;
+        
+        // 유효한 키가 없으면 사용자에게 요청
+        if (!isValid(finalKey)) {
             const manualKey = prompt("⚠️ 상담 시스템 사용을 위해 Google Gemini API 키가 필요합니다.\n(한 번 입력하면 브라우저에 자동 저장되어 다음번엔 묻지 않습니다.)\n\nAPI Key:", "");
-            if (manualKey && manualKey.trim().length > 10) {
-                finalKey = manualKey.trim();
+            if (isValid(manualKey)) {
+                finalKey = manualKey!.trim();
                 localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey); // 영구 저장
             }
         } else {
-            // 유효한 키가 있다면 로컬 스토리지도 동기화 (다음번 로그인을 위해)
-            // 단, 서버에서 빈 값이 오거나 환경변수가 없을 때 로컬키를 날리지 않도록 주의
-            if (finalKey !== getLocalApiKey()) {
+            // 유효한 키가 있다면 로컬 스토리지도 최신화 (다음번 로그인을 위해)
+            // 서버나 환경변수에서 키가 왔다면 로컬에 백업해둠
+            if (finalKey !== localKey) {
                 localStorage.setItem('GEMINI_LOCAL_API_KEY', finalKey);
             }
         }
