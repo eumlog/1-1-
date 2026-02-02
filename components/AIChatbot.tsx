@@ -15,10 +15,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   
-  // [수정] 모바일 키보드 대응을 위한 동적 높이 상태
   const [viewportHeight, setViewportHeight] = useState('100dvh');
 
-  // [수정] API 키 초기화
   const [currentApiKey, setCurrentApiKey] = useState<string>(() => {
     const saved = localStorage.getItem('GEMINI_LOCAL_API_KEY');
     return (saved && saved.length > 10) ? saved : (apiKey || '');
@@ -26,12 +24,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const [isSaving, setIsSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
-  // [추가] 초기화 및 중단 제어용 Refs
   const abortRef = useRef(false);
   const resetTimeoutRef = useRef<any>(null);
 
-  // [핵심] 모바일 Visual Viewport 감지
   useEffect(() => {
     const handleResize = () => {
       if (window.visualViewport) {
@@ -56,7 +53,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     };
   }, []);
 
-  // API 키 동기화
+  useEffect(() => {
+    if (!isTyping && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [isTyping]);
+
   useEffect(() => {
     if (apiKey && apiKey.trim().length > 10) {
         setCurrentApiKey(apiKey);
@@ -74,7 +78,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     return String(val).trim();
   };
 
-  // [중요] 스프레드시트 헤더 매핑 (App.tsx의 MOCK_DATA와 정확히 일치해야 함)
+  // [수정] 자녀 계획, 직업 등 추가 헤더 정의 (시트의 헤더명과 일치해야 함)
   const HEADERS = {
     NAME: '이름(*)',
     BIRTH: '생년월일(*)',
@@ -84,8 +88,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     INCOME: '상대방의 연봉(소득) 기준이 있다면(*)',
     EDU: '선호 학력(*)',
     RELIGION: '종교(*)', 
+    JOB: '직업(*)',
+    CHILDREN: '자녀 계획(*)',
     PRIORITY: '이상형 조건 순위(*)',
-    CONDITIONS_LIST: '보장 조건 선택 (중요)(*)' // [핵심] 조건 목록 업데이트를 위한 헤더
+    CONDITIONS_LIST: '보장 조건 선택 (중요)(*)'
   };
 
   const name = safeStr(userData?.[HEADERS.NAME] || userData?.name || '회원');
@@ -102,14 +108,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const priorityWeights = safeStr(userData?.[HEADERS.PRIORITY]);
 
   const rawConditions = safeStr(userData?.[HEADERS.CONDITIONS_LIST]);
-  // [수정] 콤마(,)도 구분자로 인식하도록 정규식 수정 (/[|/,]/)
   const selectedConditions = rawConditions 
     ? rawConditions.split(/[|/,]/).map(s => s.trim()).filter(Boolean)
     : [];
   
   const conditionStr = selectedConditions.length > 0 ? selectedConditions.join(', ') : '없음';
   
-  // 조건이 3개 이상이면 프리미엄으로 간주
   const isPremiumUser = selectedConditions.length >= 3;
   const planName = isPremiumUser ? '프리미엄' : '베이직';
 
@@ -124,6 +128,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   const REACTION_DEFAULT = "(보장/비보장 여부에 따른 적절한 반응 출력)";
   const REACTION_EASY = "(조건이 까다롭지 않으므로, '비보장 안내' 멘트를 절대 하지 말고 '네 확인했습니다' 정도로 깔끔하게 답변)";
   const REACTION_CONDITIONAL = "(사용자가 제안을 수락하거나 유연한 태도(괜찮다 등)를 보이면 '비보장 안내' 멘트를 절대 하지 말고 '네, 그럼 해당 기준으로 넓혀서 매칭해드리겠습니다'라고 변경 사항을 확정하세요. 반면 까다로운 조건을 고집하면 보장/비보장 여부에 따라 반응하세요.)";
+  // [추가] 키 비보장 시 강제 안내 멘트
+  const REACTION_HEIGHT_WARNING = "(중요: 키는 보장 조건이 아니므로, '선호하시니 맞춰보겠지만 필수 조건은 아니라서 상황에 따라 키가 조금 다른 분이 소개될 수도 있다는 점 참고 부탁드립니다'라는 취지의 안내를 반드시 포함하세요)";
 
   let ageGuide = '';
   let ageReaction = REACTION_DEFAULT;
@@ -197,7 +203,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   let heightReaction = REACTION_DEFAULT;
 
   if (prefHeight) {
-    const hNum = parseInt(prefHeight.replace(/[^0-9]/g, '')) || 0;
+    const hNumMatch = prefHeight.match(/\d+/);
+    const hNum = hNumMatch ? parseInt(hNumMatch[0]) : 0;
+
     const isHeightPriority = priorityWeights && (priorityWeights.includes('키1') || priorityWeights.includes('키 1'));
     const priorityText = isHeightPriority ? '1순위로 두셨는데' : '적어주셨는데';
 
@@ -232,8 +240,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 혹시 비율이 좋다면 ${suggestion} 분들도 괜찮으실까요? 조율이 가능한지 여쭤봅니다!`;
             heightReaction = REACTION_CONDITIONAL;
          } else {
-            // 159, 158 등 160 미만(150대 후반 등)은 그대로 반영
-            heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 원하시는 키 범위의 분들로 잘 찾아보겠습니다!`;
+            if (prefHeight.includes('~') || prefHeight.includes('-')) {
+                heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 원하시는 해당 범위 내의 분들로 잘 찾아보겠습니다!`;
+            } else {
+                heightGuide = `키는 ${prefHeight}으로 ${priorityText}, 원하시는 키 범위의 분들로 잘 찾아보겠습니다!`;
+            }
             heightReaction = REACTION_EASY;
          }
       } else {
@@ -243,6 +254,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   } else {
     heightGuide = `키 조건을 선택해주셨는데, 구체적으로 선호하시는 키 기준이 있으실까요?`;
+  }
+
+  // [핵심] 키가 보장 조건(CONDITIONS_LIST)에 없으면 비보장 안내 멘트를 강제
+  if (!isSelected('키')) {
+      heightReaction = REACTION_HEIGHT_WARNING;
   }
 
   let locationGuide = '';
@@ -385,7 +401,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const steps = [];
 
-  // [중요] 프리미엄 회원을 위한 플랜 확인 단계
   if (isPremiumUser) {
     steps.push({
         title: '플랜 확인 (프리미엄 대상)',
@@ -443,6 +458,9 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     title: '마무리',
     guide: `질문: "모든 상담이 완료되었습니다! ${name}님께서 선택하신 [최종 확정된 보장 조건들] 조건은 확실히 보장하여 매칭을 진행해 드릴 예정입니다. 고생하셨습니다. 감사합니다!"\n
     - **[중요] 데이터 저장**: 상담 종료 시, 변경되거나 확정된 조건들을 **아래 지정된 '시트 헤더명'을 Key로 사용하여** JSON 형식으로 출력하세요.\n
+    - **[핵심] 변경 내역 요약 (AL열 저장용)**: JSON 안에 \`changeSummary\` 필드를 추가하여, 상담을 통해 **값이 변경되거나 조율된 조건**들을 \`"조건명 기존값 -> 변경값"\` 형식으로 한 줄로 요약해 주세요. 여러 개일 경우 \` / \`로 구분합니다.\n
+      - 예시: "키 180cm이상 -> 178cm이상 / 흡연 비흡연 -> 흡연 가능 / 나이 1998년생 -> 1995년생"\n
+      - 변경된 사항이 없으면 "변경 사항 없음"이라고 적으세요.\n
     - JSON 예시:\n
     \`\`\`json
     {
@@ -450,9 +468,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         "${HEADERS.AGE}": "1990년생 이상 ~ 1995년생 이하",
         "${HEADERS.HEIGHT}": "165cm 이상",
         "${HEADERS.SMOKING}": "무관",
-        "${HEADERS.CONDITIONS_LIST}": "나이, 키" // 베이직으로 변경된 경우 필수 포함
+        "${HEADERS.INCOME}": "4천 이상",
+        "${HEADERS.RELIGION}": "무교만",
+        "${HEADERS.CONDITIONS_LIST}": "나이, 키"
       },
-      "memo": "연봉은 3천 초반도 괜찮다고 하심. 베이직으로 변경함."
+      "changeSummary": "키 165cm이상 -> 160cm이상 / 흡연 비흡연 -> 흡연 가능 / 연봉 5천 -> 4천",
+      "memo": "성격이 급하신 편."
     }
     \`\`\`
     - 변경되지 않은 조건은 updates에 포함하지 마세요.`
@@ -471,7 +492,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     [핵심 규칙 1: 답변에 대한 반응 (매우 중요)]
     사용자의 답변을 듣고 나서, 현재 다루고 있는 주제(예: 나이, 키, 흡연, 연봉 등)가 '현재 유효한 보장 조건'인지 확인 후 아래와 같이 반응하세요.
 
-    CASE A: 조건 조율/변경 (사용자가 "3천 이상도 괜찮아요", "상관없어요", "전문대도 돼요" 등 조건을 완화하거나 변경할 때)
+    CASE A: 조건 조율/변경 (사용자가 "3천 이상도 괜찮아요", "상관없어요", "흡연자도 돼요", "자녀 계획 없음" 등 조건을 완화하거나 변경할 때)
     - 반응: "네, 확인했습니다! 말씀하신 대로 [변경된 내용]으로 기준을 수정하여 매칭 진행해 드리겠습니다." (확실하게 수용 의사 표시)
 
     CASE B: 현재 주제가 '보장 조건'에 포함되는 경우
@@ -482,17 +503,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       옵션 1: "네, 이 부분은 필수 보장 조건은 아니어서 최대한 맞춰보겠지만, 상황에 따라 조금 다른 분이 소개될 수도 있는 점 양해 부탁드려요!"
       옵션 2: "넵! 선호하시는 대로 가점은 드리지만, 보장 조건은 아니라서 100% 일치하지 않을 수도 있다는 점 참고해 주세요."
       옵션 3: "알겠습니다. 최대한 반영해 보겠지만, 필수 조건 외에는 매칭 상황에 따라 조금 유연하게 진행될 수 있어요!"
-
+    
     [핵심 규칙 2: 플랜 및 조건 변경 (프리미엄 -> 베이직)]
     - 만약 사용자가 상담 초반에 **베이직 플랜으로 변경**을 요청하여 보장 조건을 2가지로 줄였다면, 이후 상담부터는 **그 2가지 조건만 '보장 조건'으로 취급**해야 합니다.
     - **[매우 중요]**: 상담이 끝나고 JSON을 출력할 때, \`updates\` 항목에 반드시 \`"${HEADERS.CONDITIONS_LIST}"\` 키를 포함하고, 값으로 **사용자가 최종 선택한 2가지 조건 목록(예: "나이, 키")**을 넣어야 합니다. 그래야 엑셀 시트에 변경 사항이 저장됩니다.
 
-    [핵심 규칙 3: 말풍선 분리 (모바일 가독성 최우선)]
-    - **긴 답변은 무조건 자르세요.** 모바일 화면에서 5줄 이상 넘어가지 않도록, **한 말풍선당 1~2문장**으로 짧게 끊어서 \`\\n\\n\`으로 구분하세요.
-    - 특히 **[이전 답변에 대한 반응]**과 **[다음 주제로 넘어가는 멘트]**가 합쳐지면 내용이 길어지므로, 이 둘은 **무조건** \`\\n\\n\`으로 분리해서 보내야 합니다.
-
-    [핵심 규칙 4: 데이터 전송용 출력 (가장 중요)]
+    [핵심 규칙 3: 데이터 전송용 출력 (가장 중요)]
     - 상담 완료 후 JSON 출력 시, 반드시 **스프레드시트의 정확한 헤더명**을 Key로 사용해야 합니다.
+    - 만약 사용자가 조건을 변경했다면(예: 비흡연 -> 흡연 가능, 키 180 -> 175, 자녀 계획 변경 등), \`updates\` 객체에 반드시 해당 헤더명과 변경된 값을 포함하세요.
     - 사용할 헤더명 목록:
       - 나이 -> "${HEADERS.AGE}"
       - 키 -> "${HEADERS.HEIGHT}"
@@ -500,6 +518,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       - 연봉 -> "${HEADERS.INCOME}"
       - 학력 -> "${HEADERS.EDU}"
       - 종교 -> "${HEADERS.RELIGION}"
+      - 직업 -> "${HEADERS.JOB}"
+      - 자녀 계획 -> "${HEADERS.CHILDREN}"
       - 보장 조건 목록 -> "${HEADERS.CONDITIONS_LIST}" (조건 목록이 변경되었을 때 필수)
     
     - JSON은 사용자에게 보이지 않지만 시스템이 읽어서 **시트의 해당 칸을 자동으로 수정**합니다. 정확한 키를 사용하세요.
@@ -515,7 +535,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   `;
 
   useEffect(() => {
-    // 키가 없으면 키 입력 프롬프트 자동 실행은 하지 않음 (헤더 버튼 이용 유도)
     if (!currentApiKey) return; 
 
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -525,10 +544,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       } catch (e) {
         console.error("Chat history parsing failed");
       }
-    } else if (name) { // name이 있을 때만 시작
+    } else if (name) {
       startIntro();
     }
-  }, [name, currentApiKey]); // userData 대신 name 의존성 사용
+  }, [name, currentApiKey]); 
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -558,13 +577,17 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     if (isSaving) return;
     setIsSaving(true);
     try {
-        const fullChatLog = messages.map(m => `[${m.role}] ${m.text}`).join('\n\n');
-        
+        // [수정] 상담 내용 전체(fullChatLog) 대신 변경 요약(changeSummary)만 저장
+        let logData = "변경 사항 없음";
+        if (summaryData && summaryData.changeSummary) {
+            logData = summaryData.changeSummary;
+        }
+
         const payload: any = {
             action: 'save_consultation',
             name: name,
             birth: birthYear,
-            chatLog: fullChatLog
+            chatLog: logData // AL열에 요약본 저장
         };
 
         if (summaryData) {
@@ -584,7 +607,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             body: JSON.stringify(payload)
         });
         
-        setMessages(prev => [...prev, { role: 'model', text: "✅ 상담 내용이 시스템에 안전하게 저장되었습니다." }]);
     } catch (e) {
         console.error('Failed to save consultation', e);
         setMessages(prev => [...prev, { role: 'model', text: "⚠ 상담 내용 저장 중 네트워크 지연이 발생했습니다. (담당자가 수동으로 확인할 예정이니 안심하세요!)" }]);
@@ -595,7 +617,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const appendMessages = async (texts: string[]) => {
     for (const text of texts) {
-      if (abortRef.current) return; // 중단 요청 시 종료
+      if (abortRef.current) return;
       if (!text || !text.trim()) continue;
 
       if (text.includes('```json')) {
@@ -605,7 +627,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       setIsTyping(true);
       const delay = Math.min(Math.max(text.length * 35, 700), 1500);
       await new Promise(resolve => setTimeout(resolve, delay));
-      if (abortRef.current) return; // 딜레이 후 다시 확인
+      if (abortRef.current) return;
 
       setMessages(prev => [...prev, { role: 'model', text: text.replace(/\*\*/g, '').trim() }]);
       setIsTyping(false);
@@ -634,25 +656,21 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
   const handleReset = () => {
     if (window.confirm("현재 대화 내용을 모두 삭제하고 처음부터 다시 상담을 시작하시겠습니까?")) {
-      // 1. 현재 진행 중인 모든 작업(타이핑 등) 중단
       abortRef.current = true;
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
       
-      // 2. 상태 즉시 클리어
       localStorage.removeItem(STORAGE_KEY);
       setMessages([]);
       setIsTyping(false);
-      setInput(''); // 입력창도 초기화
+      setInput(''); 
 
-      // 3. 약간의 딜레이 후 재시작 (abort가 확실히 적용되도록)
       resetTimeoutRef.current = setTimeout(() => {
-          abortRef.current = false; // 중단 플래그 해제
+          abortRef.current = false;
           startIntro();
       }, 300);
     }
   };
   
-  // [수정] 수동 키 업데이트 시 로컬 스토리지에 저장하여 영구 유지
   const handleUpdateApiKey = () => {
       const newKey = prompt("새로운 API 키를 입력해주세요 (브라우저에 저장됩니다):", currentApiKey);
       if (newKey && newKey.trim()) {
@@ -673,7 +691,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     const userMsg = manualInput || input;
     if (!userMsg.trim() || isTyping) return;
 
-    // 전송 시작 시 abort flag 해제 (혹시 모를 잔여 상태 방지)
     abortRef.current = false;
 
     setInput('');
@@ -702,7 +719,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         }
       }
 
-      const currentUserText = `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}`;
+      const currentUserText = `[규칙: 긴 답변은 무조건 \\n\\n으로 분리(모바일 배려), 사용자가 조건(연봉, 나이, 학력, 흡연, 자녀계획 등)을 완화하거나 변경하면 확실히 수용하고 반영 멘트 하기] ${userMsg}`;
       
       if (lastRole === 'user' && formattedContents.length > 0) {
         formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${currentUserText}`;
@@ -719,13 +736,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       
-      // [핵심] API 호출 재시도 로직 추가 (최대 3회)
       let aiText = "";
       let lastError = null;
       let success = false;
 
       for (let attempt = 0; attempt < 3; attempt++) {
-        // 중단 요청 확인
         if (abortRef.current) return;
         
         try {
@@ -745,16 +760,14 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             });
             aiText = response.text || "";
             success = true;
-            break; // 성공 시 루프 탈출
+            break;
         } catch (e: any) {
             console.warn(`Attempt ${attempt + 1} failed:`, e);
             lastError = e;
-            // 인증 오류나 API 키 오류는 재시도하지 않고 즉시 중단
             const errStr = e.toString();
             if (errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
                 throw e;
             }
-            // 재시도 전 대기 (1초, 2초...)
             await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
         }
       }
@@ -765,13 +778,12 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
       const parts = aiText.split('\n\n').filter(p => p.trim());
       
-      // API 응답 후에도 중단 여부 확인
       if (abortRef.current) return;
 
       await appendMessages(parts);
 
     } catch (error: any) {
-      if (abortRef.current) return; // 에러 처리 전 중단 확인
+      if (abortRef.current) return;
       
       console.error("Gemini API Error:", error);
       
@@ -782,7 +794,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
          const newKey = prompt(`🚨 API 키 오류가 발생했습니다 (${errStr.includes('expired') ? '만료됨' : '유효하지 않음'}).\n\n새로운 API 키를 입력해주시면 즉시 적용되어 계속 상담할 수 있습니다:`, currentApiKey);
          if (newKey && newKey.trim()) {
              const k = newKey.trim();
-             localStorage.setItem('GEMINI_LOCAL_API_KEY', k); // [수정] 오류 복구 시에도 영구 저장
+             localStorage.setItem('GEMINI_LOCAL_API_KEY', k);
              setCurrentApiKey(k);
              alert("API 키가 갱신 및 저장되었습니다. 다시 '전송' 버튼을 눌러주세요.");
              errorMsg = "API 키가 갱신되었습니다. 방금 입력하신 내용을 다시 전송해주세요!";
@@ -798,7 +810,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   return (
-    // [수정] 모바일 Full Screen Layout: Viewport Height를 동적으로 style에 적용
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center md:p-4">
       <div 
         style={{ height: viewportHeight }} 
@@ -808,7 +819,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/10">👩‍💼</div>
             <div>
-              {/* [수정] 헤더 타이틀 글씨 크기 축소 text-[15px] -> text-[14px] */}
               <div className="font-bold text-[14px] md:text-[15px] tracking-tight">이음로그 매니저</div>
               <div className="text-[10px] opacity-90 flex items-center gap-1">
                 {isSaving ? (
@@ -852,7 +862,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
               {msg.role === 'model' && (
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-[9px] mr-2 mt-1 shrink-0 font-black text-emerald-700 border border-emerald-200 shadow-sm">이음</div>
               )}
-              {/* [수정] 채팅 말풍선 글씨 크기 축소 text-[14px] -> text-[13px] */}
               <div className={`max-w-[85%] px-3 py-2.5 md:px-4 md:py-3 rounded-2xl text-[13px] md:text-[14px] shadow-sm whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user' 
                 ? 'bg-emerald-500 text-white rounded-tr-none' 
@@ -875,8 +884,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
         <div className="p-3 md:p-4 bg-white border-t border-slate-100 shrink-0 relative pb-safe">
           <div className="flex gap-2">
-            {/* [수정] 입력창 및 버튼 글씨 크기 축소 text-sm -> text-[13px] */}
             <input 
+              ref={inputRef}
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
