@@ -628,9 +628,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
     }
   };
 
-  const startIntro = async () => {
+  const startIntro = async (isReset: boolean = false) => {
     // [중복 방지 2차 체크] 이미 실행 중이거나 메시지가 있으면 중단
-    if (introInProgress.current || messages.length > 0) return;
+    // 단, 리셋 직후에는 messages state가 아직 비워진 것으로 인식되지 않을 수 있으므로(클로저) isReset=true일 경우 length 체크 생략
+    if (introInProgress.current || (!isReset && messages.length > 0)) return;
     introInProgress.current = true;
 
     let introParts = [
@@ -666,7 +667,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
 
       resetTimeoutRef.current = setTimeout(() => {
           abortRef.current = false;
-          startIntro();
+          startIntro(true);
       }, 300);
     }
   };
