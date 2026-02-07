@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 interface AIChatbotProps {
   userData: any;
@@ -165,14 +165,34 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       ageGuide = `나이는 ${prefAge}으로 적어주셨는데, 설문지 내용 그대로 우선 반영하겠습니다.`;
     } else {
       if (gender === '여자') {
-        const older5Year = myYearFull - 5;
-        if (minPrefYear > older5Year) {
+        // [수정] 사용자의 생년 기준으로 '최대 5살 연상'까지만 제안
+        const standardOlderLimit = myYearFull - 5;
+        
+        if (minPrefYear > standardOlderLimit) {
            const limitYear = minPrefYear - 1;
-           const startYear = older5Year;
+           
+           // 제안 범위가 너무 넓어지지 않도록 조정 (최대 7년 범위)
+           let startYear = standardOlderLimit;
+           if (limitYear - startYear > 7) {
+             startYear = limitYear - 7;
+           }
+
            const yStart = startYear.toString().substring(2);
            const yEnd = limitYear.toString().substring(2);
            const rangeStr = (yStart === yEnd) ? `${yStart}년생` : `${yStart}~${yEnd}년생`;
-           ageGuide = `나이는 ${prefAge}으로 적어주셨는데, ${rangeStr}(5살 연상)까지는 어떠실까요?`;
+           
+           // [수정] 나이 차이 멘트를 동적으로 계산 (예: "최대 5살 연상", "동갑" 등)
+           const ageDiffStart = myYearFull - startYear;
+           let label = "";
+           if (ageDiffStart > 0) label = `${ageDiffStart}살 연상`;
+           else if (ageDiffStart === 0) label = "동갑";
+           else label = `${Math.abs(ageDiffStart)}살 연하`;
+
+           if (limitYear - startYear > 1 && ageDiffStart > 0) {
+              label = `최대 ${label}`;
+           }
+
+           ageGuide = `나이는 ${prefAge}으로 적어주셨는데, ${rangeStr}(${label}) 분들까지는 어떠실까요?`;
            ageReaction = REACTION_CONDITIONAL;
         } else {
            ageGuide = `나이는 ${prefAge}으로 적어주셨는데, 설문지 내용 그대로 우선 반영하겠습니다.`;
@@ -550,8 +570,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         console.error("Chat history parsing failed");
       }
     } else if (name) {
-      introCalled.current = true;
-      startIntro();
+      // 컴포넌트 마운트 시 최초 실행 (리셋이 아님)
+      startIntro(false);
     }
   }, [name, currentApiKey]); 
 
@@ -626,10 +646,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   const startIntro = async (isReset: boolean = false) => {
-    // [중복 방지 2차 체크] 이미 실행 중이거나 메시지가 있으면 중단
-    // 단, 리셋 직후에는 messages state가 아직 비워진 것으로 인식되지 않을 수 있으므로(클로저) isReset=true일 경우 length 체크 생략
-    if (introInProgress.current || (!isReset && messages.length > 0)) return;
+    // [수정] 리셋(isReset=true)인 경우, 진행 중 상태(introInProgress)여도 강제로 뚫고 지나가도록 조건 완화
+    if (!isReset && (introInProgress.current || messages.length > 0)) return;
+    
     introInProgress.current = true;
+    introCalled.current = true; // useEffect 중복 방지용
 
     let introParts = [
       `안녕하세요 ${name}님! 이음로그 매니저입니다.\n보내주신 프로필과 이상형 조건 꼼꼼하게 확인했습니다.`
@@ -651,22 +672,27 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
   };
 
   const handleReset = () => {
-    if (window.confirm("현재 대화 내용을 모두 삭제하고 처음부터 다시 상담을 시작하시겠습니까?")) {
-      abortRef.current = true;
-      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
-      
-      localStorage.removeItem(STORAGE_KEY);
-      setMessages([]);
-      setIsTyping(false);
-      setInput(''); 
-      introCalled.current = true; // reset 후 수동 호출하므로 flag 유지
-      introInProgress.current = false; // reset이므로 실행 가능 상태로
+    if (!window.confirm("현재 대화 내용을 모두 삭제하고 처음부터 다시 상담을 시작하시겠습니까?")) return;
 
-      resetTimeoutRef.current = setTimeout(() => {
-          abortRef.current = false;
-          startIntro(true);
-      }, 300);
-    }
+    // 1. 진행 중인 타이핑 중단
+    abortRef.current = true;
+    if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+    
+    // 2. 상태 및 저장소 초기화
+    localStorage.removeItem(STORAGE_KEY);
+    setMessages([]);
+    setInput('');
+    setIsTyping(false); 
+    
+    // 3. 플래그 초기화
+    introCalled.current = false; 
+    introInProgress.current = false; 
+
+    // 4. 약간의 지연 후 재시작 (State 업데이트 반영 확보)
+    resetTimeoutRef.current = setTimeout(() => {
+        abortRef.current = false;
+        startIntro(true); // 강제 시작 플래그 전달
+    }, 200);
   };
   
   const handleUpdateApiKey = () => {
@@ -742,14 +768,18 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         if (abortRef.current) return;
         
         try {
-            // [수정] 모델을 gemini-2.0-flash-exp (오류 발생) -> gemini-1.5-flash (안정적)로 변경
-            // safetySettings 제거 (버전 간 호환성 이슈 방지)
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-3-flash-preview',
                 contents: formattedContents,
                 config: {
-                    systemInstruction: systemInstruction,
-                    temperature: 0.2,
+                systemInstruction: systemInstruction,
+                temperature: 0.2,
+                safetySettings: [
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                ]
                 }
             });
             aiText = response.text || "";
@@ -759,7 +789,6 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             console.warn(`Attempt ${attempt + 1} failed:`, e);
             lastError = e;
             const errStr = e.toString();
-            // 키 오류(400)나 권한 오류(403)는 즉시 중단
             if (errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
                 throw e;
             }
@@ -806,15 +835,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
       const errStr = error.toString();
       
-      // [수정] 구체적인 에러 메시지를 표시하여 문제 파악을 도움
-      if (errStr.includes('API_KEY_INVALID')) {
-          errorMsg = "⚠ API 키가 잘못되었습니다. (400 Bad Request)";
-      } else if (errStr.includes('403')) {
-          errorMsg = "⚠ API 권한 오류입니다. Google Cloud Console에서 'Generative Language API'가 활성화되어 있는지, 또는 키에 'Referrer' 제한이 걸려있지 않은지 확인해주세요. (403 Forbidden)";
-      } else if (errStr.includes('404')) {
-          errorMsg = "⚠ AI 모델을 찾을 수 없습니다. (404 Not Found)";
-      } else if (errStr.includes('400')) {
-          errorMsg = "⚠ 요청 형식이 올바르지 않습니다. (400 Bad Request)";
+      // [수정] 프롬프트 호출(alert/prompt) 코드를 완전히 제거했습니다.
+      // 에러가 발생하면 사용자를 귀찮게 하지 않고 단순히 메시지만 띄웁니다.
+      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
+         errorMsg = "⚠ 시스템 설정 오류(API Key)로 인해 답변을 생성할 수 없습니다. 담당 매니저에게 문의해주세요.";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);
@@ -853,7 +877,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             {isAdmin && (
               <button 
                   onClick={handleUpdateApiKey} 
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
+                  className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
                   title="API 키 수동 설정"
               >
                   🔑
@@ -861,7 +885,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
             )}
             <button 
                 onClick={handleReset} 
-                className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
+                className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-full text-lg transition-all"
                 title="처음부터 다시 시작"
             >
                 🔄
