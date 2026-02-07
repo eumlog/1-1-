@@ -836,10 +836,13 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
       let errorMsg = "상담 매니저와의 연결이 잠시 원활하지 않았습니다. 방금 말씀해주신 내용을 다시 한번 입력 부탁드려요!";
       const errStr = error.toString();
       
-      // [수정] 프롬프트 호출(alert/prompt) 코드를 완전히 제거했습니다.
-      // 에러가 발생하면 사용자를 귀찮게 하지 않고 단순히 메시지만 띄웁니다.
-      if (errStr.includes('leaked') || errStr.includes('expired') || errStr.includes('API_KEY_INVALID') || errStr.includes('403') || errStr.includes('400')) {
-         errorMsg = "⚠ 시스템 설정 오류(API Key)로 인해 답변을 생성할 수 없습니다. 담당 매니저에게 문의해주세요.";
+      // [수정] 에러 메시지를 세분화하여 웹 배포 시 403 에러(리퍼러 제한)를 구체적으로 안내
+      if (errStr.includes('403')) {
+          errorMsg = "⚠ 보안 설정 오류: 현재 웹사이트 도메인에서의 API 사용 권한이 없습니다. (Google Cloud Console > API Key > HTTP Referrers 설정을 확인해주세요)";
+      } else if (errStr.includes('API_KEY_INVALID') || errStr.includes('expired')) {
+          errorMsg = "⚠ 시스템 설정 오류: API 키가 유효하지 않거나 만료되었습니다. 담당 매니저에게 문의해주세요.";
+      } else if (errStr.includes('leaked') || errStr.includes('400')) {
+          errorMsg = "⚠ 시스템 설정 오류: 보안상의 이유로 요청이 차단되었습니다. (API Key Issue)";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorMsg }]);

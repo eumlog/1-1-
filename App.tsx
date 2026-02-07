@@ -43,6 +43,8 @@ function App() {
     // 이전에 잘못 저장된 키가 있더라도 덮어씁니다.
     if (MASTER_KEY && MASTER_KEY.length > 20) {
       localStorage.setItem('GEMINI_LOCAL_API_KEY', MASTER_KEY);
+      // 개발 모드 디버깅용 로그 (배포 시 제거 가능)
+      console.log("API Key loaded successfully into storage.");
     }
   }, []);
 
