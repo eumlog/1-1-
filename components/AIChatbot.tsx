@@ -742,10 +742,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ userData, apiKey, onClose,
         if (abortRef.current) return;
         
         try {
-            // [수정] 모델을 gemini-3-flash-preview (비공개) -> gemini-2.0-flash-exp (공개 최신)으로 변경
-            // [수정] safetySettings 제거 (버전 간 호환성 이슈로 인한 400 Bad Request 방지)
+            // [수정] 모델을 gemini-2.0-flash-exp (오류 발생) -> gemini-1.5-flash (안정적)로 변경
+            // safetySettings 제거 (버전 간 호환성 이슈 방지)
             const response = await ai.models.generateContent({
-                model: 'gemini-2.0-flash-exp',
+                model: 'gemini-1.5-flash',
                 contents: formattedContents,
                 config: {
                     systemInstruction: systemInstruction,
